@@ -1485,17 +1485,18 @@ document.addEventListener('DOMContentLoaded', () => {
         let html = `<h3><i class="fa-solid fa-users"></i> Project Development Team</h3>`;
         html += '<div class="creators-list">';
         
-        // ULM first and emphasized as main creator
-        html += `<p class="primary-creator"><span class="creator-role">Site Design & Development:</span> <strong>ULM Labs</strong></p>`;
+        // ULM and trevor16 together in the same blue box
+        html += `<p class="primary-creator"><span class="creator-role">Site Design & Development:</span> <strong>ULM Labs</strong><br><span>Discord:</span> <strong>trevor16</strong></p>`;
         html += `<div class="secondary-creators">`;
         html += `<p class="sub-heading">Value List Contributors:</p>`;
+        html += `<p><span>Discord:</span> trevor16</p>`;
         html += `<p><span>Roblox:</span> My14thAddction</p>`;
         html += `<p><span>Roblox:</span> VEN_0MS</p>`;
         html += `<p><span>Discord:</span> iwokeup2moody</p>`;
         html += `<p><span>Discord:</span> framw</p>`;
         html += `</div>`;
         html += '</div>';
-
+        
         if (infoData.contactNote) {
             html += `<p style="margin-top: 1rem; font-style: italic;">${infoData.contactNote}</p>`;
         }
@@ -1504,7 +1505,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return html;
     }
-
     function displayPopup(contentHTML) {
         const existingPopup = document.querySelector('.node-content-popup');
         if (existingPopup) existingPopup.remove();
