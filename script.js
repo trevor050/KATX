@@ -607,24 +607,28 @@ document.addEventListener('DOMContentLoaded', () => {
     let allItems = [];
 
     // --- HARDCODED Guide Data ---
-    const guideData = {
-        stability: [
-            { term: "Stable", definition: "Item's value will most likely not change, if it does, it wouldn't be a major change" },
-            { term: "Unstable", definition: "Item's value is fluxuating, may end up increasing or decreasing" },
-            { term: "Declining", definition: "Item is on track to lose a significant amount of its value" },
-            { term: "Rising", definition: "Item is on track to gain a significant amount of value" }
-        ],
-        demand: [
-            { term: "High", definition: "Most demandable items, very easy to trade and get overpays for" },
-            { term: "Medium", definition: "Items with good demand, likely wont have trouble getting a good deal for it" },
-            { term: "Normal", definition: "Item has reasonable demand, not heavily sought after but could still get a fair trade" },
-            { term: "Low", definition: "Item has bad demand, nobody really looks for it and it will likely be underpaid for" }
-        ],
-        value: [
-            { term: "Owner's Choice", definition: "Temporary value, for items that have little to no owners and are likely not in circulation" },
-            { term: "???", definition: "Items with basically no value, exclusive to admins and will probably never be traded" }
-        ]
-    };
+const guideData = {
+    stability: [
+        { term: "Stable", definition: "Item's value will most likely not change, if it does, it wouldn't be a major change" },
+        { term: "Unstable", definition: "Item's value is fluxuating, may end up increasing or decreasing" },
+        { term: "Declining", definition: "Item is on track to lose a significant amount of its value" },
+        { term: "Rising", definition: "Item is on track to gain a significant amount of value" }
+    ],
+    demand: [
+        { term: "High", definition: "Most demandable items, very easy to trade and get overpays for" },
+        { term: "Medium", definition: "Items with good demand, likely wont have trouble getting a good deal for it" },
+        { term: "Normal", definition: "Item has reasonable demand, not heavily sought after but could still get a fair trade" },
+        { term: "Low", definition: "Item has bad demand, nobody really looks for it and it will likely be underpaid for" }
+    ],
+    value: [
+        { term: "Owner's Choice", definition: "Temporary value, for items that have little to no owners and are likely not in circulation" },
+        { term: "???", definition: "Items with basically no value, exclusive to admins and will probably never be traded" }
+    ],
+    // Add new fusion section
+    fusion: [
+        { term: "Fusing", definition: "Fused items lose 30% of their original value. Hover over an item to check if its labeled with \"Fusion Effect: ... \"" }
+    ]
+};
 
     const rarityOrder = ["Contraband", "Mythical", "Legendary", "Unique", "Epic", "Rare", "Common"];
 
@@ -1402,6 +1406,7 @@ document.addEventListener('DOMContentLoaded', () => {
         populateCategory(stabilityGuideEl, 'stability');
         populateCategory(demandGuideEl, 'demand');
         populateCategory(valueGuideEl, 'value');
+        populateCategory(document.getElementById('fusion-guide'), 'fusion');
     }
 
     function populateInfoNodes() {

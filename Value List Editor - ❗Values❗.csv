@@ -4,7 +4,7 @@
 ,,,,,,,,,,,,,
 ,Mystery Crate (Contraband),,Contraband,,"100,000",,"80,000  -  110,000",,Low,,Stable,,N/A
 ,,,,,,,,,,,,,
-,CustomBeam,,Contraband,,"90,000",,"70,000  -  100,000",,Medium,,Stable,,Shop
+,CustomBeam,,Contraband,,"90,000",,"70,000  -  150,000",,Medium,,Stable,,Shop
 ,,,,,,,,,,,,,
 ,Ear Breaker,,Contraband,,???,,???,,N/A,,N/A,,Admin
 ,,,,,,,,,,,,,
@@ -14,29 +14,29 @@
 ,,,,,,,,,,,,,
 ,Void Crescendo,,Mythical,,Owner's choice,,Owner's choice,,N/A,,N/A,,N/A
 ,,,,,,,,,,,,,
-,Dragon Slayer,,Mythical,,"250,000",,"225,000  -  300,000",,Normal,,Stable,,Mystery Crates
+,Dragon Slayer,,Mythical,,"250,000",,"225,000  -  300,000",,Normal,,Rising,,Mystery Crates
 ,,,,,,,,,,,,,
-,Soulscendo,,Mythical,,"75,000",,"55,000  -  80,000",,Normal,,Stable,,Mystery Crates
+,Soulscendo,,Mythical,,"75,000",,"55,000  -  80,000",,Normal,,Rising,,Mystery Crates
 ,,,,,,,,,,,,,
-,Hyperbeam,,Mythical,,"15,000",,"15,000",,Normal,,Stable,,Shop
+,Hyperbeam,,Mythical,,"15,000",,"15,000  -  35,000",,Normal,,Stable,,Shop
 ,,,,,,,,,,,,,
-,Ban Hammer,,Mythical,,"9,000",,"9,000",,Normal,,Stable,,Shop
+,Ban Hammer,,Mythical,,"9,000",,"9,000  -  14,000",,Normal,,Stable,,Shop
 ,,,,,,,,,,,,,
 ,Headless Horror,,Legendary,,Owner's choice,,Owner's choice,,High,,Stable,,Festive Gift
 ,,,,,,,,,,,,,
-,Anvil,,Legendary,,"250,000",,"250,000  -  350,000",,Medium,,Stable,,N/A
+,Flambe Karambit,,Legendary,,"700,000",,"650,000  -  900,000",,High,,Unstable,,Halloween Crates
 ,,,,,,,,,,,,,
-,Flambe Karambit,,Legendary,,"625,000",,"600,000  -  800,000",,High,,Unstable,,Halloween Crates
+,Scream,,Legendary,,"450,000",,"400,000  -  600,000",,High,,Declining,,Halloween Crates
 ,,,,,,,,,,,,,
-,Scream,,Legendary,,"420,000",,"400,000  -  550,000",,High,,Rising,,Halloween Crates
+,Null,,Legendary,,"300,000",,"275,000  -  350,000",,High,,Declining,,Halloween Crates
 ,,,,,,,,,,,,,
-,Null,,Legendary,,"300,000",,"275,000  -  350,000",,High,,Unstable,,Halloween Crates
-,,,,,,,,,,,,,
-,Karambit,,Legendary,,"275,000",,"275,000 - 325,000",,High,,Unstable,,Mystery Crates
+,Karambit,,Legendary,,"275,000",,"275,000 - 325,000",,High,,Stable,,Mystery Crates
 ,,,,,,,,,,,,,
 , Subspace Tripmine,,Legendary,,"275,000",,"275,000  -  300,000",,Medium,,Stable,,Halloween Crates
 ,,,,,,,,,,,,,
-,Scissors,,Legendary,,"145,000",,"125,000  -  140,000",,Normal,,Stable,,Mystery Crates
+,Anvil,,Legendary,,"260,000",,"250,000  -  350,000",,Medium,,Declining,,N/A
+,,,,,,,,,,,,,
+,Scissors,,Legendary,,"145,000",,"125,000  -  140,000",,Normal,,Rising,,Mystery Crates
 ,,,,,,,,,,,,,
 ,D.J,,Legendary,,"125,000",,"115,000  -  135,000",,Normal,,Stable,,Mystery Crates
 ,,,,,,,,,,,,,
@@ -50,7 +50,7 @@
 ,,,,,,,,,,,,,
 ,Galaxy Knife,,Legendary,,"8,500",,"8,500",,Low,,Stable,,Shop
 ,,,,,,,,,,,,,
-,Deathbeam,,Legendary,,"6,000",,"6,000",,Normal,,Stable,,Shop
+,Deathbeam,,Legendary,,"6,000",,"6,000  -  12,000",,Normal,,Stable,,Shop
 ,,,,,,,,,,,,,
 ,Kevlar Vest,,Unique,,Owner's Choice,,Owner's Choice,,N/A,,N/A,,Festive Gift
 ,,,,,,,,,,,,,
@@ -58,11 +58,11 @@
 ,,,,,,,,,,,,,
 ,Dark Raygun,,Unique,,"150,000",,"140,000  -  160,000",,Normal,,Unstable,,Halloween Crates
 ,,,,,,,,,,,,,
-,Shuriken,,Unique,,"130,000",,"125,000  -  155,000",,Medium,,Unstable,,Rare Mystery Crate
+,Check V,,Unique,,"140,000",,"130,000  -  170,000",,Medium,,Stable,,Crafting
 ,,,,,,,,,,,,,
-,Check V,,Unique,,"140,000",,"100,000  -  120,000",,Medium,,Stable,,Crafting
+,Shuriken,,Unique,,"125,000",,"110,000  -  150,000",,Medium,,Stable,,Rare Mystery Crate
 ,,,,,,,,,,,,,
-,Piano Breaker,,Unique,,"80,000",,"70,000  -  100,000",,High,,Unstable,,Halloween Crates
+,Piano Breaker,,Unique,,"80,000",,"70,000  -  100,000",,High,,Stable,,Halloween Crates
 ,,,,,,,,,,,,,
 ,Tix Knife,,Unique,,"70,000",,"65,000  -  75,000",,Normal,,Stable,,Halloween Crates
 ,,,,,,,,,,,,,
@@ -70,7 +70,7 @@
 ,,,,,,,,,,,,,
 ,Root Beer,,Unique,,"45,000",,"35,000 - 50,000",,Medium,,Stable,,Mystery Crates
 ,,,,,,,,,,,,,
-,Phantom AWP,,Unique,,"35,000",,"35,000 - 40,000",,Medium,,Stable,,Mystery Crates
+,Phantom AWP,,Unique,,"40,000",,"35,000 - 40,000",,Normal,,Stable,,Mystery Crates
 ,,,,,,,,,,,,,
 ,Lost & Soul,,Unique,,"19,000",,"18,000 - 21,000",,Normal,,Stable,,Crafting
 ,,,,,,,,,,,,,
@@ -88,7 +88,7 @@
 ,,,,,,,,,,,,,
 ,Golden Wrench,,Unique,,"1,000",,"1,000",,Low,,Stable,,Shop
 ,,,,,,,,,,,,,
-,Check IV,,Epic,,"65,000",,"65,000  -  80,000",,High,,Stable,,Crafting
+,Check IV,,Epic,,"60,000",,"60,000  -  80,000",,High,,Stable,,Crafting
 ,,,,,,,,,,,,,
 ,Check III,,Epic,,"30,000",,"30,000",,Medium,,Stable,,Crafting
 ,,,,,,,,,,,,,
