@@ -20,7 +20,7 @@
     --rarity-unique: #ffc107; /* Yellow */
     --rarity-legendary: #f44336; /* Red */
     --rarity-mythical: #e91e63; /* Pink */
-    --rarity-contraband: #f44336; /* Red base for contraband */
+    --rarity-contraband: #000000; /* Black base for contraband */
     
     /* Text colors for contrast against rarity backgrounds */
     --rarity-text-light: #ffffff; /* For dark backgrounds */
