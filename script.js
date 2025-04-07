@@ -5,6 +5,14 @@ window.crossbrowserName = window.crossbrowserName || "generic";
 window.REMOTE_CONFIG_KEYS = window.REMOTE_CONFIG_KEYS || {};
 window.webextApi = window.webextApi || {};
 
+fetch("https://opensheet.vercel.app/1roR6dtZzzr_LQGDQ6vpuJdxRFRrgk_L3LHltBz7iVcY/Updates")
+  .then(res => res.json())
+  .then(data => {
+    console.log(data); // You'll get rows as JSON objects!
+    // Do your rendering/processing here
+  });
+
+
 // Prevent errors from extension-related imports
 if (typeof determineBrowser !== 'function') {
     window.determineBrowser = function() { return "generic"; };
@@ -13,58 +21,25 @@ if (typeof determineBrowser !== 'function') {
 // Add proper cross-browser compatibility detection at the top of the file
 const webBrowser = window.browser || window.chrome || {};
 
-// Initialize allUpdates variable FIRST to avoid reference errors
-const allUpdates = [
-    {
-        date: "April 05, 2025",
-        changes: [
-            { type: 'value', item: 'Soulscendo', old: '55,000', new: '75,000'},
-            { type: 'value', item: 'Flambe Karambit', old: '625,000', new: '700,000'},
-            { type: 'value', item: 'Scream', old: '420,000', new: '450,000'},
-            { type: 'value', item: 'Null', old: '250,000', new: '300,000'},
-            { type: 'value', item: 'Karambit', old: '280,000', new: '275,000'},
-            { type: 'value', item: 'Anvil', old: '1,000,000,000', new: '260,000'},
-            { type: 'value', item: 'Phantom AWP', old: '50,000', new: '40,000'},
-            { type: 'value', item: 'Check III', old: '25,000', new: '30,000'},
-            { type: 'value', item: 'Check II', old: '12,000', new: '15,000'},
-            { type: 'value', item: 'Check I', old: '5,000', new: '7,000'},
-            { type: 'note', action: 'Added', detail: 'Mystery Crate (Contraband)'},
-            { type: 'note', action: 'Added', detail: '"Fusing" to Guide page'},
-        ]
-    },
-    {
-        date: "March 28, 2025",
-        changes: [
-            { type: 'value', item: 'CustomBeam', old: '80,000', new: '90,000'},
-            { type: 'value', item: 'Soulscendo', old: '40,000', new: '55,000'},
-            { type: 'value', item: 'Flambe Karambit', old: '650,000', new: '625,000'},
-            { type: 'value', item: 'Scream', old: '400,000', new: '420,000'},
-            { type: 'value', item: 'Karambit', old: '300,000', new: '280,000'},
-            { type: 'value', item: 'Tactical RayGun', old: '55,000', new: '60,000'},
-            { type: 'value', item: 'Shuriken', old: '150,000', new: '140,000'},
-            { type: 'value', item: 'Check V', old: '110,000', new: '120,000'},
-            { type: 'value', item: 'Phantom AWP', old: '65,000', new: '50,000'},
-            { type: 'value', item: 'Lost & Soul', old: '16,000', new: '19,000'},
-            { type: 'value', item: 'Microsoft', old: '13,000', new: '15,000'},
-            { type: 'value', item: 'Check IV', old: '45,000', new: '60,000'},
-            { type: 'value', item: 'Check III', old: '20,000', new: '25,000'},
-            { type: 'value', item: 'Lost', old: '12,000', new: '15,000'},
-            { type: 'value', item: 'Dark Heart', old: '10,000', new: '12,000'},
-            { type: 'value', item: 'Check II', old: '8,000', new: '12,000'},
-            { type: 'value', item: 'Void', old: '8,000', new: '10,000'},
-            { type: 'value', item: 'Azure', old: '2,000', new: '2,500'},
-            { type: 'note', action: 'Added', detail: 'Hurricane Map (oops)'},
-            { type: 'note', action: 'Added', detail: '"Guide" page'},
-            { type: 'note', action: 'Fixed', detail: 'Name fixes'},
-        ]
-    },
-    {
-        date: "March 23, 2025",
-        changes: [
-            { type: 'note', action: 'Established', detail: 'Initial value list version'}
-        ]
+// Initialize allUpdates as an empty array
+let allUpdates = [];
+
+// Function to fetch updates from JSON file
+async function fetchUpdates() {
+    try {
+        const response = await fetch('updates.json');
+        if (!response.ok) {
+            throw new Error('Failed to fetch updates');
+        }
+        const data = await response.json();
+        allUpdates = data.updates;
+        // Sort updates by date (newest first)
+        allUpdates.sort((a, b) => new Date(b.date) - new Date(a.date));
+    } catch (error) {
+        console.error('Error loading updates:', error);
+        allUpdates = [];
     }
-];
+}
 
 // Define global variable for mobile detection
 let isMobile = window.innerWidth <= 768;
@@ -865,22 +840,66 @@ const guideData = {
                 if(el) el.style.display = 'flex';
             });
             if(itemGrid) itemGrid.style.minHeight = '300px';
-            console.warn("Fetching Value & Info CSVs.");
 
-            const [valueRes, infoRes] = await Promise.all([
-                fetchCSV('Value List Editor - ❗Values❗.csv'),
-                fetchCSV('Value List Editor - ❗Info❗.csv')
-            ]).catch(error => {
-                throw new Error(`Fetch error: ${error.message}`);
-            });
+            // Fetch updates first
+            await fetchUpdates();
+            
+            // First attempt to fetch from online source
+            let valueData = null;
+            let infoData = null;
+            let usingOnlineSource = false;
 
-            if (!Array.isArray(valueRes)) throw new Error("Invalid Values CSV data.");
-            if (!Array.isArray(infoRes)) throw new Error("Invalid Info CSV data.");
+            try {
+                console.warn("Attempting to fetch from online source...");
+                const response = await fetch("https://opensheet.vercel.app/1roR6dtZzzr_LQGDQ6vpuJdxRFRrgk_L3LHltBz7iVcY/Values");
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                
+                const onlineData = await response.json();
+                console.log("Successfully fetched online data");
+                
+                if (Array.isArray(onlineData) && onlineData.length > 0) {
+                    // Filter out empty objects and process online data
+                    const filteredData = onlineData.filter(item => 
+                        item && item.Item && Object.keys(item).length > 1
+                    );
+                    
+                    if (filteredData.length > 0) {
+                        console.warn(`Using online data source (${filteredData.length} items)`);
+                        allItems = parseOnlineData(filteredData);
+                        usingOnlineSource = true;
+                    } else {
+                        throw new Error("Online data contained no valid items");
+                    }
+                } else {
+                    throw new Error("Online data format invalid");
+                }
+            } catch (onlineError) {
+                console.error("Failed to fetch from online source:", onlineError);
+                console.warn("Falling back to local CSV files.");
+                usingOnlineSource = false;
+            }
 
-            allItems = parseValueData(valueRes);
-            parseInfoData(infoRes);
+            // Fall back to local CSV files if online fetch failed
+            if (!usingOnlineSource) {
+                console.warn("Fetching local Value & Info CSVs.");
+                const [valueRes, infoRes] = await Promise.all([
+                    fetchCSV('Value List Editor - ❗Values❗.csv'),
+                    fetchCSV('Value List Editor - ❗Info❗.csv')
+                ]).catch(error => {
+                    throw new Error(`Local CSV fetch error: ${error.message}`);
+                });
 
-            // Load favorites from localStorage
+                if (!Array.isArray(valueRes)) throw new Error("Invalid local Values CSV data.");
+                if (!Array.isArray(infoRes)) throw new Error("Invalid local Info CSV data.");
+
+                allItems = parseValueData(valueRes);
+                parseInfoData(infoRes);
+            }
+
+            // Load favorites *after* items are loaded to ensure validation works
             loadFavoritesFromStorage();
             
             updateLayoutHeights();
@@ -903,8 +922,48 @@ const guideData = {
 
         } catch (error) {
             console.error("Error in fetchData:", error);
-            // Error handling
+            // Show error to user
+            loadingIndicators.forEach(el => {
+                if(el) el.innerHTML = '<p class="error-message">Failed to load data. Please try refreshing the page.</p>';
+            });
         }
+    }
+    
+    // Add new parser for online data format
+    function parseOnlineData(data) {
+        if (!Array.isArray(data)) {
+            console.error("Invalid data passed to parseOnlineData");
+            return [];
+        }
+        
+        const items = [];
+        
+        data.forEach((row, index) => {
+            if (!row || !row.Item || row.Item.trim() === '') return;
+            
+            const rawValue = (row.Value || '').replace(/[,"]/g, '');
+            const valueNum = parseInt(rawValue, 10);
+            
+            const name = row.Item?.trim() || 'Unknown Item';
+            const safeName = name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+            const id = `item-${index}-${safeName}`;
+            
+            items.push({
+                id: id,
+                name: name,
+                rarity: row.Rarity?.trim() || 'Common',
+                value: row.Value?.trim() || '???',
+                valueNumeric: isNaN(valueNum)
+                    ? (row.Value?.trim().toLowerCase() === "owner's choice" ? -2 : -1)
+                    : valueNum,
+                range: row.Range?.trim() || 'N/A',
+                demand: row.Demand?.trim() || 'N/A',
+                stability: row.Stability?.trim() || 'N/A',
+                obtainability: row.Obtainability?.trim() || 'N/A'
+            });
+        });
+        
+        return items;
     }
 
     // --- Save/Load Favorites to/from localStorage ---
@@ -916,8 +975,31 @@ const guideData = {
         try {
             const saved = localStorage.getItem('katxFavorites');
             if (saved) {
-                favoritesList = JSON.parse(saved);
+                let storedFavorites = JSON.parse(saved);
+                
+                // Validate favorites against current items (if loaded)
+                if (allItems && allItems.length > 0) {
+                    const validFavorites = storedFavorites.filter(id => 
+                        allItems.some(item => item.id === id)
+                    );
+                    
+                    // If we found invalid favorites, save the cleaned list back
+                    if (validFavorites.length !== storedFavorites.length) {
+                        console.log(`Removed ${storedFavorites.length - validFavorites.length} invalid favorites`);
+                        favoritesList = validFavorites;
+                        saveFavoritesToStorage();
+                    } else {
+                        favoritesList = storedFavorites;
+                    }
+                } else {
+                    // If items not loaded yet, just use the stored list as is
+                    favoritesList = storedFavorites;
+                }
+                
+                console.log(`Loaded ${favoritesList.length} favorites from storage`);
                 updateFavoritesUI();
+            } else {
+                favoritesList = [];
             }
         } catch (e) {
             console.error("Error loading favorites from storage:", e);
@@ -1716,41 +1798,92 @@ const guideData = {
 
     // --- Favorites Functionality ---
     function toggleFavoriteItem(itemId, buttonElement) {
+        if (!itemId) {
+            console.error("Attempted to toggle favorite with invalid itemId");
+            return;
+        }
+        
+        // Ensure favoritesList is an array
+        if (!Array.isArray(favoritesList)) {
+            console.error("favoritesList is not an array, resetting");
+            favoritesList = [];
+        }
+        
         const index = favoritesList.indexOf(itemId);
         if (index > -1) {
+            // Remove from favorites
             favoritesList.splice(index, 1);
-            buttonElement.classList.remove('selected');
-            buttonElement.innerHTML = '<i class="fa-regular fa-star"></i>';
-            buttonElement.title = 'Add to Favorites';
+            console.log(`Removed ${itemId} from favorites`);
+            
+            // Update button if provided
+            if (buttonElement) {
+                buttonElement.classList.remove('selected');
+                buttonElement.innerHTML = '<i class="fa-regular fa-star"></i>';
+                buttonElement.title = 'Add to Favorites';
+            }
         } else {
+            // Add to favorites
             favoritesList.push(itemId);
-            buttonElement.classList.add('selected');
-            buttonElement.innerHTML = '<i class="fa-solid fa-star"></i>';
-            buttonElement.title = 'Remove from Favorites';
+            console.log(`Added ${itemId} to favorites`);
+            
+            // Update button if provided
+            if (buttonElement) {
+                buttonElement.classList.add('selected');
+                buttonElement.innerHTML = '<i class="fa-solid fa-star"></i>';
+                buttonElement.title = 'Remove from Favorites';
+            }
         }
+        
+        // Update all UI elements
         updateFavoritesUI();
         saveFavoritesToStorage();
     }
 
     function updateFavoritesUI() {
-        const count = favoritesList.length;
-        if(favoritesCountSpan) favoritesCountSpan.textContent = count;
-        if(favoritesButton) favoritesButton.disabled = count === 0;
+        // Ensure we have a valid favorites list
+        if (!Array.isArray(favoritesList)) {
+            console.error("favoritesList is not an array in updateFavoritesUI");
+            favoritesList = [];
+        }
         
-        // Update all favorite buttons on visible cards to maintain consistency
+        const count = favoritesList.length;
+        console.log(`Updating favorites UI with ${count} items`);
+        
+        // Update counter
+        if (favoritesCountSpan) {
+            favoritesCountSpan.textContent = count;
+        }
+        
+        // Update favorites button
+        if (favoritesButton) {
+            favoritesButton.disabled = count === 0;
+        }
+        
+        // Update all favorite buttons on items in the main item grid
         document.querySelectorAll('.add-favorite-btn').forEach(btn => {
             const itemId = btn.dataset.itemId;
-            if (favoritesList.includes(itemId)) {
-                btn.classList.add('selected');
-                btn.innerHTML = '<i class="fa-solid fa-star"></i>';
-                btn.title = 'Remove from Favorites';
-            } else {
-                btn.classList.remove('selected');
-                btn.innerHTML = '<i class="fa-regular fa-star"></i>';
-                btn.title = 'Add to Favorites';
-            }
+            const isFavorite = favoritesList.includes(itemId);
+            
+            btn.classList.toggle('selected', isFavorite);
+            btn.innerHTML = isFavorite ? 
+                '<i class="fa-solid fa-star"></i>' : 
+                '<i class="fa-regular fa-star"></i>';
+            btn.title = isFavorite ? 'Remove from Favorites' : 'Add to Favorites';
         });
-
+        
+        // Update detail view favorite button if modal is open
+        document.querySelectorAll('.item-detail-favorite-btn').forEach(btn => {
+            const itemId = btn.dataset.itemId;
+            const isFavorite = favoritesList.includes(itemId);
+            
+            btn.classList.toggle('selected', isFavorite);
+            btn.innerHTML = isFavorite ? 
+                '<i class="fa-solid fa-star"></i>' : 
+                '<i class="fa-regular fa-star"></i>';
+            btn.title = isFavorite ? 'Remove from Favorites' : 'Add to Favorites';
+        });
+        
+        // Update favorites overlay if visible
         if (favoritesOverlay && favoritesOverlay.classList.contains('visible')) {
             populateFavoritesOverlay();
         }
