@@ -67,6 +67,15 @@ function findItemByName(name) {
     return allItems.find(item => cleanItemName(item.name).toLowerCase() === cleanedName.toLowerCase());
 }
 
+// Utility debounce function
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+
 // Function to generate the mobile chat bubble timeline
 function generateMobileTimeline() {
     // Only execute on mobile
@@ -244,7 +253,7 @@ function generateMobileTimeline() {
     if (dates.length > visibleDates) {
         const loadMoreBtn = document.createElement('button');
         loadMoreBtn.className = 'load-more-button';
-        loadMoreBtn.innerHTML = '<span>Continue to iterate?</span> <i class="fas fa-chevron-down"></i>';
+        loadMoreBtn.innerHTML = '<span>Show More?</span> <i class="fas fa-chevron-down"></i>';
         mobileTimeline.appendChild(loadMoreBtn);
         
         loadMoreBtn.addEventListener('click', function() {
@@ -308,6 +317,89 @@ function generateMobileTimeline() {
         duration: 400,
         easing: 'easeOutQuad'
     });
+}
+
+// Optimize particle system for mobile
+function initParticleSystem() {
+    const particleCanvas = document.getElementById('particle-canvas');
+    if (!particleCanvas) return;
+
+    const ctx = particleCanvas.getContext('2d');
+    if (!ctx) return;
+
+    const isMobile = window.innerWidth <= 768;
+    let particles = [];
+
+    function resizeCanvas() {
+        particleCanvas.width = window.innerWidth;
+        particleCanvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+
+    // Reduce or disable particles on mobile
+    let numberOfParticles = isMobile ? 0 : Math.min((particleCanvas.width * particleCanvas.height) / 12000, 150);
+
+    for (let i = 0; i < numberOfParticles; i++) {
+        particles.push(new Particle());
+    }
+
+    function Particle() {
+        this.x = Math.random() * particleCanvas.width;
+        this.y = Math.random() * particleCanvas.height;
+        this.size = Math.random() * 1.8 + 0.6;
+        this.speedX = Math.random() * 0.3 - 0.15;
+        this.speedY = Math.random() * 0.3 - 0.15;
+        this.color = `rgba(200,220,255,${Math.random() * 0.6 + 0.2})`;
+    }
+
+    Particle.prototype.update = function() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        if (
+            this.x < -10 || this.x > particleCanvas.width + 10 ||
+            this.y < -10 || this.y > particleCanvas.height + 10
+        ) {
+            this.x = Math.random() * particleCanvas.width;
+            this.y = Math.random() * particleCanvas.height;
+        }
+    };
+
+    Particle.prototype.draw = function() {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+    };
+
+    function animate() {
+        ctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+        particles.forEach(p => {
+            p.update();
+            p.draw();
+        });
+        if (!isMobile) drawLines();
+        requestAnimationFrame(animate);
+    }
+
+    function drawLines() {
+        for (let a = 0; a < particles.length; a++) {
+            for (let b = a + 1; b < particles.length; b++) {
+                const dx = particles[a].x - particles[b].x;
+                const dy = particles[a].y - particles[b].y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 100) {
+                    ctx.strokeStyle = `rgba(150,200,255,${(1 - dist / 100) * 0.1})`;
+                    ctx.lineWidth = 0.3;
+                    ctx.beginPath();
+                    ctx.moveTo(particles[a].x, particles[a].y);
+                    ctx.lineTo(particles[b].x, particles[b].y);
+                    ctx.stroke();
+                }
+            }
+        }
+    }
+
+    if (!isMobile) animate();
 }
 
 // Function to initialize mobile features
@@ -658,130 +750,14 @@ const guideData = {
     const confirmActionBtn = document.getElementById('confirm-action-btn');
 
     // Add event listener to update heights on resize
-    window.addEventListener('resize', updateLayoutHeights);
+    const debouncedResizeHandler = debounce(() => {
+        updateLayoutHeights();
+        initMobileFeatures();
+    }, 250);
+    window.addEventListener('resize', debouncedResizeHandler);
 
     // --- Particle Background ---
-    if (particleCanvas) {
-        const ctx = particleCanvas.getContext('2d');
-        let particles = [];
-        let mouse = { x: null, y: null };
-
-        function resizeCanvas() {
-            particleCanvas.width = window.innerWidth;
-            particleCanvas.height = window.innerHeight;
-        }
-        resizeCanvas();
-        window.addEventListener('resize', () => {
-            resizeCanvas();
-            initParticles();
-            updateLayoutHeights();
-        });
-        particleCanvas.addEventListener('mousemove', (event) => {
-            mouse.x = event.clientX;
-            mouse.y = event.clientY;
-        });
-        particleCanvas.addEventListener('mouseleave', () => {
-            mouse.x = null;
-            mouse.y = null;
-        });
-
-        class Particle {
-            constructor() {
-                this.x = Math.random() * particleCanvas.width;
-                this.y = Math.random() * particleCanvas.height;
-                this.size = Math.random() * 1.8 + 0.6;
-                this.speedX = Math.random() * 0.3 - 0.15;
-                this.speedY = Math.random() * 0.3 - 0.15;
-                this.baseColor = Math.random() > 0.1
-                    ? `rgba(200, 220, 255, ${Math.random() * 0.6 + 0.2})`
-                    : `rgba(0, 255, 255, ${Math.random() * 0.6 + 0.3})`;
-                this.color = this.baseColor;
-            }
-            update() {
-                this.x += this.speedX;
-                this.y += this.speedY;
-                if (mouse.x != null && mouse.y != null) {
-                    const dx = this.x - mouse.x;
-                    const dy = this.y - mouse.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    const maxDistance = 80;
-                    if (distance < maxDistance) {
-                        const forceDirectionX = dx / distance;
-                        const forceDirectionY = dy / distance;
-                        const force = (maxDistance - distance) / maxDistance * 0.15;
-                        this.x += forceDirectionX * force;
-                        this.y += forceDirectionY * force;
-                    }
-                }
-                if (
-                    this.x < -10 ||
-                    this.x > particleCanvas.width + 10 ||
-                    this.y < -10 ||
-                    this.y > particleCanvas.height + 10
-                ) {
-                    this.x = Math.random() * particleCanvas.width;
-                    this.y = Math.random() > 0.5 ? -5 : particleCanvas.height + 5;
-                    this.speedX = Math.random() * 0.3 - 0.15;
-                    this.speedY = Math.random() * 0.3 - 0.15;
-                }
-            }
-            draw() {
-                ctx.fillStyle = this.color;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
-
-        function initParticles() {
-            particles = [];
-            let numberOfParticles = (particleCanvas.width * particleCanvas.height) / 12000;
-            numberOfParticles = Math.min(numberOfParticles, 150);
-            for (let i = 0; i < numberOfParticles; i++) {
-                particles.push(new Particle());
-            }
-        }
-
-        function animateParticles() {
-            if (!ctx) return;
-            ctx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
-            particles.forEach(p => {
-                p.update();
-                p.draw();
-            });
-            drawLines();
-            requestAnimationFrame(animateParticles);
-        }
-
-        function drawLines() {
-            if (!ctx) return;
-            let maxDistance = 100; // Moderate distance for connections
-            ctx.beginPath();
-            for (let a = 0; a < particles.length; a++) {
-                for (let b = a + 1; b < particles.length; b++) {
-                    const dx = particles[a].x - particles[b].x;
-                    const dy = particles[a].y - particles[b].y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    
-                    // Dynamic connection logic - only connect if distance is right and passes random check
-                    if (distance < maxDistance && Math.random() > 0.15) {
-                        // More varied opacity based on distance
-                        const opacity = (1 - (distance / maxDistance)) * (0.05 + Math.random() * 0.1);
-                        ctx.strokeStyle = `rgba(150, 200, 255, ${opacity})`;
-                        ctx.lineWidth = 0.3 + Math.random() * 0.4; // Varied line width
-                        ctx.moveTo(particles[a].x, particles[a].y);
-                        ctx.lineTo(particles[b].x, particles[b].y);
-                    }
-                }
-            }
-            ctx.stroke();
-        }
-
-        initParticles();
-        animateParticles();
-    } else {
-        console.error("Particle canvas not found!");
-    }
+    initParticleSystem();
 
     // Helper functions for fuzzy matching
     function stringSimilarity(s1, s2) {
@@ -1333,6 +1309,7 @@ const guideData = {
         console.log(`Trying image path for item card: ${imgPath}`);
         img.src = imgPath;
         img.alt = item.name;
+        img.loading = 'lazy';
         img.onload = () => console.log(`Loaded image for ${item.name}: ${imgPath}`);
         img.onerror = () => {
             console.warn(`XImage not found for ${item.name} at ${imgPath}`);
@@ -1422,6 +1399,7 @@ const guideData = {
         console.log(`Trying image path for favorite card: ${imgPath}`);
         img.src = imgPath;
         img.alt = item.name;
+        img.loading = 'lazy';
         img.onload = () => console.log(`Loaded favorite image for ${item.name}: ${imgPath}`);
         img.onerror = () => {
             console.warn(`Favorite image not found for ${item.name} at ${imgPath}`);
@@ -1501,6 +1479,7 @@ const guideData = {
         console.log(`Trying image path for detail card: ${imgPath}`);
         img.src = imgPath;
         img.alt = item.name;
+        img.loading = 'lazy';
         img.onload = () => console.log(`Loaded detail image for ${item.name}: ${imgPath}`);
         img.onerror = () => {
             console.warn(`Detail image not found for ${item.name} at ${imgPath}`);
