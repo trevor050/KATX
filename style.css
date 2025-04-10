@@ -20,7 +20,7 @@
     --rarity-unique: #ffc107; /* Yellow */
     --rarity-legendary: #f44336; /* Red */
     --rarity-mythical: #e91e63; /* Pink */
-    --rarity-contraband: #000000; /* Black base for contraband */
+    --rarity-contraband: #c60505; /* Black base for contraband */
     
     /* Text colors for contrast against rarity backgrounds */
     --rarity-text-light: #ffffff; /* For dark backgrounds */
@@ -43,16 +43,30 @@
 html {
     scroll-behavior: smooth;
     font-size: 16px;
+    height: 100%;
+    overflow-x: hidden;
 }
 body {
     font-family: var(--font-secondary);
     background-color: var(--color-background);
     color: var(--color-text);
     line-height: 1.6;
-    overflow-x: hidden; /* Prevent horizontal scrolling/shifting */
-    min-height: 100vh;
     display: flex;
     flex-direction: column;
+    min-height: 100vh;
+    max-height: 100vh;
+    overflow-y: auto;
+}
+
+/* Main content grows to fill space between header and footer */
+main#main-content {
+    flex: 1 0 auto;
+    overflow-y: auto;
+}
+
+/* Footer stays at bottom */
+footer#main-footer {
+    flex-shrink: 0;
 }
 
 /* --- Particle Canvas --- */
@@ -3747,7 +3761,7 @@ footer#main-footer {
   }
 
   /* Hide the original event structure if generating new mobile one */
-  body.mobile-view #timeline-events .timeline-event {
+   body.mobile-view #timeline-events .timeline-event {
      display: none !important; /* Hide original events completely */
   }
 
@@ -4560,4 +4574,89 @@ footer#main-footer {
   justify-content: center;
   border-radius: 50%;
   font-size: 0.8rem;
+}
+.item-image-container {
+    width: 100%;
+    aspect-ratio: 1/1;
+    background: rgba(255,255,255,0.05); /* subtle background for transparent imgs */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.item-image-container img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    background: transparent;
+    transition: transform 0.3s ease;
+}
+
+.item-image-container img:hover {
+    transform: scale(1.05);
+}
+
+/* --- Contact Modal --- */
+.contact-modal-content {
+  max-width: 500px;
+  padding: 2rem;
+  background: var(--color-glass-bg);
+  border: 1px solid var(--color-primary);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,255,255,0.2);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.contact-modal-content h3 {
+  font-family: var(--font-primary);
+  color: var(--color-primary);
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.contact-section h4 {
+  font-family: var(--font-primary);
+  color: var(--color-secondary);
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding-bottom: 0.3rem;
+}
+
+.contact-box {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.contact-box.primary {
+  background: rgba(0,255,255,0.1);
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 15px rgba(0,255,255,0.3);
+}
+
+.contact-box p {
+  margin: 0.3rem 0;
+  font-size: 1rem;
+  color: var(--color-text);
+  text-align: center;
+}
+
+.contact-box strong {
+  font-size: 1.1rem;
+  color: var(--color-primary);
+}
+
+#contact-footer-link {
+  cursor: pointer;
 }

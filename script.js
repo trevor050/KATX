@@ -5,7 +5,7 @@ window.crossbrowserName = window.crossbrowserName || "generic";
 window.REMOTE_CONFIG_KEYS = window.REMOTE_CONFIG_KEYS || {};
 window.webextApi = window.webextApi || {};
 
-fetch("https://opensheet.vercel.app/1roR6dtZzzr_LQGDQ6vpuJdxRFRrgk_L3LHltBz7iVcY/Updates")
+fetch("https://opensheet.vercel.app/1roR6dtZzzr_LQGDQ6vpuJdxRFRrgk_L3LHltBz7iVcY/Values")
   .then(res => res.json())
   .then(data => {
     console.log(data); // You'll get rows as JSON objects!
@@ -605,7 +605,7 @@ const guideData = {
     ]
 };
 
-    const rarityOrder = ["Contraband", "Mythical", "Legendary", "Unique", "Epic", "Rare", "Common"];
+    const rarityOrder = ["Contraband", "Mythical", "Legendary", "Unique", "Epic", "Rare", "Common", "Stock"];
 
     const infoData = { welcome: '', creators: [], ownerDisclaimer: '', contactNote: '', discordNote: ''};
     let currentSection = 'info-hub';
@@ -1325,6 +1325,23 @@ const guideData = {
         card.dataset.rarity = item.rarity;
         card.style.setProperty('--rarity-color', `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`);
 
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'item-image-container';
+
+        const img = document.createElement('img');
+        const imgPath = `imgs/images/${item.name}.png`;
+        console.log(`Trying image path for item card: ${imgPath}`);
+        img.src = imgPath;
+        img.alt = item.name;
+        img.onload = () => console.log(`Loaded image for ${item.name}: ${imgPath}`);
+        img.onerror = () => {
+            console.warn(`Image not found for ${item.name} at ${imgPath}`);
+            img.style.display = 'none';
+        };
+        imgContainer.appendChild(img);
+
+        card.appendChild(imgContainer);
+
         const isSpecialValue = item.value === "Owner's choice" || item.value === "???";
         const valueClass = isSpecialValue ? (item.value === "???" ? 'unknown' : 'owner-choice') : '';
 
@@ -1349,14 +1366,11 @@ const guideData = {
         const stabilityIconText = getStatusIcon(item.stability, 'stability');
         const obtainabilityText = item.obtainability || 'N/A';
 
-        card.innerHTML = `
+        card.innerHTML += `
             <div class="item-card-content">
                 <div class="item-card-header">
                     <span class="item-name">${item.name}</span>
                     <span class="item-rarity">${item.rarity}</span>
-                </div>
-                <div class="item-visual-placeholder">
-                    <i class="fa-solid placeholder-icon ${getRarityIconClass(item.rarity)}"></i>
                 </div>
                 <div class="item-details">
                     <span class="item-value ${valueClass}">${formatValue(item.value)}</span>
@@ -1394,6 +1408,173 @@ const guideData = {
         return card;
     }
 
+    function createFavoriteCard(item) {
+        const card = document.createElement('div');
+        card.className = 'favorite-item-card';
+        card.dataset.rarity = item.rarity;
+        card.style.setProperty('--rarity-color', `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`);
+
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'item-image-container';
+
+        const img = document.createElement('img');
+        const imgPath = `imgs/images/${item.name}.png`;
+        console.log(`Trying image path for favorite card: ${imgPath}`);
+        img.src = imgPath;
+        img.alt = item.name;
+        img.onload = () => console.log(`Loaded favorite image for ${item.name}: ${imgPath}`);
+        img.onerror = () => {
+            console.warn(`Favorite image not found for ${item.name} at ${imgPath}`);
+            img.style.display = 'none';
+        };
+        imgContainer.appendChild(img);
+
+        card.appendChild(imgContainer);
+
+        const isSpecialValue = item.value === "Owner's choice" || item.value === "???";
+        const valueClass = isSpecialValue ? (item.value === "???" ? 'unknown' : 'owner-choice') : '';
+
+        const demandIcon = getStatusIcon(item.demand, 'demand');
+        const stabilityIcon = getStatusIcon(item.stability, 'stability');
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-favorite-btn';
+        removeBtn.innerHTML = '<i class="fa-solid fa-times"></i>';
+        removeBtn.title = 'Remove from Favorites';
+        removeBtn.dataset.itemId = item.id;
+        
+        removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            removeFavoriteItem(item.id);
+        });
+
+        card.innerHTML += `
+            <div class="favorite-card-content">
+                <div class="favorite-card-header">
+                    <span class="item-name">${item.name}</span>
+                    <span class="item-rarity">${item.rarity}</span>
+                </div>
+                <div class="item-details">
+                    <span class="item-value ${valueClass}">${formatValue(item.value)}</span>
+                    ${
+                        !isSpecialValue
+                            ? `<span class="item-range">Range: ${item.range}</span>`
+                            : ''
+                    }
+                </div>
+                <div class="item-market-info">
+                    <span class="info-chip demand-${item.demand?.toLowerCase().replace(/\s+/g, '-') || 'na'}">
+                        <span class="icon icon-demand">${demandIcon}</span>
+                        ${item.demand || 'N/A'}
+                    </span>
+                    <span class="info-chip stability-${item.stability?.toLowerCase().replace(/\s+/g, '-') || 'na'}">
+                        <span class="icon icon-stability">${stabilityIcon}</span>
+                        ${item.stability || 'N/A'}
+                    </span>
+                </div>
+                <div class="item-obtainability" title="${item.obtainability}">
+                    ${item.obtainability || 'N/A'}
+                </div>
+            </div>
+        `;
+
+        card.appendChild(removeBtn);
+        
+        card.addEventListener('click', () => {
+            openItemDetailModal(item.id);
+            if(favoritesOverlay) favoritesOverlay.classList.remove('visible');
+        });
+
+        return card;
+    }
+
+    function createDetailCard(item) {
+        const card = document.createElement('div');
+        card.className = 'item-detail-card';
+        card.style.setProperty('--rarity-color', `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`);
+
+        const imgContainer = document.createElement('div');
+        imgContainer.className = 'item-image-container';
+
+        const img = document.createElement('img');
+        const imgPath = `imgs/images/${item.name}.png`;
+        console.log(`Trying image path for detail card: ${imgPath}`);
+        img.src = imgPath;
+        img.alt = item.name;
+        img.onload = () => console.log(`Loaded detail image for ${item.name}: ${imgPath}`);
+        img.onerror = () => {
+            console.warn(`Detail image not found for ${item.name} at ${imgPath}`);
+            img.style.display = 'none';
+        };
+        imgContainer.appendChild(img);
+
+        card.appendChild(imgContainer);
+
+        const isSpecialValue = item.value === "Owner's choice" || item.value === "???";
+        const valueClass = isSpecialValue ? (item.value === "???" ? 'unknown' : 'owner-choice') : '';
+
+        const demandIconText = getStatusIcon(item.demand, 'demand');
+        const stabilityIconText = getStatusIcon(item.stability, 'stability');
+        const obtainabilityText = item.obtainability || 'N/A';
+        
+        // Create favorite button
+        const favoriteBtn = document.createElement('button');
+        favoriteBtn.className = 'item-detail-favorite-btn';
+        favoriteBtn.dataset.itemId = item.id;
+        
+        // Check if this item is in favorites
+        const isFavorite = favoritesList.includes(item.id);
+        if (isFavorite) {
+            favoriteBtn.classList.add('selected');
+            favoriteBtn.innerHTML = '<i class="fa-solid fa-star"></i>';
+            favoriteBtn.title = 'Remove from Favorites';
+        } else {
+            favoriteBtn.innerHTML = '<i class="fa-regular fa-star"></i>';
+            favoriteBtn.title = 'Add to Favorites';
+        }
+        
+        // Add event listener for toggling favorite status
+        favoriteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFavoriteItem(item.id, favoriteBtn);
+        });
+
+        card.innerHTML += `
+            <div class="item-card-header">
+                <span class="item-name">${item.name}</span>
+                <span class="item-rarity">${item.rarity}</span>
+            </div>
+            <div class="item-details">
+                <span class="item-value ${valueClass}">${formatValue(item.value)}</span>
+                ${
+                    !isSpecialValue
+                        ? `<span class="item-range">Range: ${item.range}</span>`
+                        : ''
+                }
+            </div>
+            <div class="item-market-info">
+                <span class="info-chip demand-${item.demand?.toLowerCase().replace(/\s+/g, '-') || 'na'}" data-tooltip-type="demand" data-tooltip-term="${item.demand}">
+                    <span class="icon icon-demand">${demandIconText}</span>
+                    ${item.demand || 'N/A'}
+                </span>
+                <span class="info-chip stability-${item.stability?.toLowerCase().replace(/\s+/g, '-') || 'na'}" data-tooltip-type="stability" data-tooltip-term="${item.stability}">
+                    <span class="icon icon-stability">${stabilityIconText}</span>
+                    ${item.stability || 'N/A'}
+                </span>
+            </div>
+            <div class="item-obtainability" title="${obtainabilityText}">Obtained via: ${obtainabilityText}</div>
+        `;
+
+        card.appendChild(favoriteBtn);
+
+        card.querySelectorAll('.info-chip').forEach(chip => {
+            chip.addEventListener('mouseenter', showTooltip);
+            chip.addEventListener('mouseleave', hideTooltip);
+        });
+
+        return card;
+    }
+
     function getRarityIconClass(rarity) {
         switch (rarity?.toLowerCase()) {
             case 'contraband': return 'fa-skull-crossbones';
@@ -1403,6 +1584,7 @@ const guideData = {
             case 'epic':       return 'fa-bolt';
             case 'rare':       return 'fa-clover';
             case 'common':     return 'fa-cube';
+            case 'stock':      return 'fa-box-open';  // Changed from fa-coins to fa-box-open
             default:           return 'fa-question-circle';
         }
     }
@@ -1910,72 +2092,6 @@ const guideData = {
         });
     }
 
-    function createFavoriteCard(item) {
-        const card = document.createElement('div');
-        card.className = 'favorite-item-card';
-        card.dataset.rarity = item.rarity;
-        card.style.setProperty('--rarity-color', `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`);
-
-        const isSpecialValue = item.value === "Owner's choice" || item.value === "???";
-        const valueClass = isSpecialValue ? (item.value === "???" ? 'unknown' : 'owner-choice') : '';
-
-        const demandIcon = getStatusIcon(item.demand, 'demand');
-        const stabilityIcon = getStatusIcon(item.stability, 'stability');
-
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'remove-favorite-btn';
-        removeBtn.innerHTML = '<i class="fa-solid fa-times"></i>';
-        removeBtn.title = 'Remove from Favorites';
-        removeBtn.dataset.itemId = item.id;
-        
-        removeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            removeFavoriteItem(item.id);
-        });
-
-        card.innerHTML = `
-            <div class="favorite-card-content">
-                <div class="favorite-card-header">
-                    <span class="item-name">${item.name}</span>
-                    <span class="item-rarity">${item.rarity}</span>
-                </div>
-                <div class="item-visual-placeholder">
-                    <i class="fa-solid placeholder-icon ${getRarityIconClass(item.rarity)}"></i>
-                </div>
-                <div class="item-details">
-                    <span class="item-value ${valueClass}">${formatValue(item.value)}</span>
-                    ${
-                        !isSpecialValue
-                            ? `<span class="item-range">Range: ${item.range}</span>`
-                            : ''
-                    }
-                </div>
-                <div class="item-market-info">
-                    <span class="info-chip demand-${item.demand?.toLowerCase().replace(/\s+/g, '-') || 'na'}">
-                        <span class="icon icon-demand">${demandIcon}</span>
-                        ${item.demand || 'N/A'}
-                    </span>
-                    <span class="info-chip stability-${item.stability?.toLowerCase().replace(/\s+/g, '-') || 'na'}">
-                        <span class="icon icon-stability">${stabilityIcon}</span>
-                        ${item.stability || 'N/A'}
-                    </span>
-                </div>
-                <div class="item-obtainability" title="${item.obtainability}">
-                    ${item.obtainability || 'N/A'}
-                </div>
-            </div>
-        `;
-
-        card.appendChild(removeBtn);
-        
-        card.addEventListener('click', () => {
-            openItemDetailModal(item.id);
-            if(favoritesOverlay) favoritesOverlay.classList.remove('visible');
-        });
-
-        return card;
-    }
-    
     function removeFavoriteItem(itemId) {
         const index = favoritesList.indexOf(itemId);
         if (index > -1) {
@@ -2128,79 +2244,6 @@ const guideData = {
 
     function closeItemDetailModal() {
         if(itemDetailModal) itemDetailModal.classList.remove('visible');
-    }
-
-    function createDetailCard(item) {
-        const card = document.createElement('div');
-        card.className = 'item-detail-card';
-        card.style.setProperty('--rarity-color', `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`);
-
-        const isSpecialValue = item.value === "Owner's choice" || item.value === "???";
-        const valueClass = isSpecialValue ? (item.value === "???" ? 'unknown' : 'owner-choice') : '';
-
-        const demandIconText = getStatusIcon(item.demand, 'demand');
-        const stabilityIconText = getStatusIcon(item.stability, 'stability');
-        const obtainabilityText = item.obtainability || 'N/A';
-        
-        // Create favorite button
-        const favoriteBtn = document.createElement('button');
-        favoriteBtn.className = 'item-detail-favorite-btn';
-        favoriteBtn.dataset.itemId = item.id;
-        
-        // Check if this item is in favorites
-        const isFavorite = favoritesList.includes(item.id);
-        if (isFavorite) {
-            favoriteBtn.classList.add('selected');
-            favoriteBtn.innerHTML = '<i class="fa-solid fa-star"></i>';
-            favoriteBtn.title = 'Remove from Favorites';
-        } else {
-            favoriteBtn.innerHTML = '<i class="fa-regular fa-star"></i>';
-            favoriteBtn.title = 'Add to Favorites';
-        }
-        
-        // Add event listener for toggling favorite status
-        favoriteBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleFavoriteItem(item.id, favoriteBtn);
-        });
-
-        card.innerHTML = `
-            <div class="item-card-header">
-                <span class="item-name">${item.name}</span>
-                <span class="item-rarity">${item.rarity}</span>
-            </div>
-            <div class="item-visual-placeholder">
-                <i class="fa-solid placeholder-icon ${getRarityIconClass(item.rarity)}"></i>
-            </div>
-            <div class="item-details">
-                <span class="item-value ${valueClass}">${formatValue(item.value)}</span>
-                ${
-                    !isSpecialValue
-                        ? `<span class="item-range">Range: ${item.range}</span>`
-                        : ''
-                }
-            </div>
-            <div class="item-market-info">
-                <span class="info-chip demand-${item.demand?.toLowerCase().replace(/\s+/g, '-') || 'na'}" data-tooltip-type="demand" data-tooltip-term="${item.demand}">
-                    <span class="icon icon-demand">${demandIconText}</span>
-                    ${item.demand || 'N/A'}
-                </span>
-                <span class="info-chip stability-${item.stability?.toLowerCase().replace(/\s+/g, '-') || 'na'}" data-tooltip-type="stability" data-tooltip-term="${item.stability}">
-                    <span class="icon icon-stability">${stabilityIconText}</span>
-                    ${item.stability || 'N/A'}
-                </span>
-            </div>
-            <div class="item-obtainability" title="${obtainabilityText}">Obtained via: ${obtainabilityText}</div>
-        `;
-
-        card.appendChild(favoriteBtn);
-
-        card.querySelectorAll('.info-chip').forEach(chip => {
-            chip.addEventListener('mouseenter', showTooltip);
-            chip.addEventListener('mouseleave', hideTooltip);
-        });
-
-        return card;
     }
 
     // --- Advanced Filter Modal Logic ---
