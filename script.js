@@ -1329,13 +1329,13 @@ const guideData = {
         imgContainer.className = 'item-image-container';
 
         const img = document.createElement('img');
-        const imgPath = `imgs/images/${item.name}.png`;
+        const imgPath = `imgs/images/${item.name.replace(/#/g, '_')}.png`;
         console.log(`Trying image path for item card: ${imgPath}`);
         img.src = imgPath;
         img.alt = item.name;
         img.onload = () => console.log(`Loaded image for ${item.name}: ${imgPath}`);
         img.onerror = () => {
-            console.warn(`Image not found for ${item.name} at ${imgPath}`);
+            console.warn(`XImage not found for ${item.name} at ${imgPath}`);
             img.style.display = 'none';
         };
         imgContainer.appendChild(img);
@@ -1418,7 +1418,7 @@ const guideData = {
         imgContainer.className = 'item-image-container';
 
         const img = document.createElement('img');
-        const imgPath = `imgs/images/${item.name}.png`;
+        const imgPath = `imgs/images/${item.name.replace(/#/g, '_')}.png`;
         console.log(`Trying image path for favorite card: ${imgPath}`);
         img.src = imgPath;
         img.alt = item.name;
@@ -1497,7 +1497,7 @@ const guideData = {
         imgContainer.className = 'item-image-container';
 
         const img = document.createElement('img');
-        const imgPath = `imgs/images/${item.name}.png`;
+        const imgPath = `imgs/images/${item.name.replace(/#/g, '_')}.png`;
         console.log(`Trying image path for detail card: ${imgPath}`);
         img.src = imgPath;
         img.alt = item.name;
