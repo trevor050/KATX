@@ -1305,71 +1305,123 @@ const guideData = {
         imgContainer.className = 'item-image-container';
 
         const img = document.createElement('img');
-        const imgPath = `imgs/images/${item.name.replace(/#/g, '_')}.png`;
-        console.log(`Trying image path for item card: ${imgPath}`);
-        img.src = imgPath;
         img.alt = item.name;
         img.loading = 'lazy';
-        img.onload = () => console.log(`Loaded image for ${item.name}: ${imgPath}`);
         img.onerror = () => {
-            console.warn(`XImage not found for ${item.name} at ${imgPath}`);
+            console.warn(`Image not found for ${item.name}, showing fallback icon.`);
             img.style.display = 'none';
-        };
-        imgContainer.appendChild(img);
 
+            const fallbackIcon = document.createElement('i');
+            const iconClass = getRarityIconClass(item.rarity);
+            fallbackIcon.className = `fa-solid ${iconClass} placeholder-icon`;
+            fallbackIcon.style.color = `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`;
+
+            const existingIcon = imgContainer.querySelector('.placeholder-icon');
+            if (existingIcon) existingIcon.remove();
+
+            imgContainer.appendChild(fallbackIcon);
+        };
+        const imgPath = `imgs/images/${item.name.replace(/#/g, '_')}.png`;
+        img.src = imgPath;
+        imgContainer.appendChild(img);
         card.appendChild(imgContainer);
+
+        const content = document.createElement('div');
+        content.className = 'item-card-content';
+
+        const header = document.createElement('div');
+        header.className = 'item-card-header';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'item-name';
+        nameSpan.textContent = item.name;
+
+        const raritySpan = document.createElement('span');
+        raritySpan.className = 'item-rarity';
+        raritySpan.textContent = item.rarity;
+
+        header.appendChild(nameSpan);
+        header.appendChild(raritySpan);
+
+        const details = document.createElement('div');
+        details.className = 'item-details';
 
         const isSpecialValue = item.value === "Owner's choice" || item.value === "???";
         const valueClass = isSpecialValue ? (item.value === "???" ? 'unknown' : 'owner-choice') : '';
 
+        const valueSpan = document.createElement('span');
+        valueSpan.className = `item-value ${valueClass}`;
+        valueSpan.textContent = formatValue(item.value);
+        details.appendChild(valueSpan);
+
+        if (!isSpecialValue) {
+            const rangeSpan = document.createElement('span');
+            rangeSpan.className = 'item-range';
+            rangeSpan.textContent = `Range: ${item.range}`;
+            details.appendChild(rangeSpan);
+        }
+
+        content.appendChild(header);
+        content.appendChild(details);
+
+        const marketInfo = document.createElement('div');
+        marketInfo.className = 'item-market-info';
+
+        const demandIconText = getStatusIcon(item.demand, 'demand');
+        const stabilityIconText = getStatusIcon(item.stability, 'stability');
+        const obtainabilityText = item.obtainability || 'N/A';
+
+        const demandSpan = document.createElement('span');
+        demandSpan.className = `info-chip demand-${item.demand?.toLowerCase().replace(/\s+/g, '-') || 'na'}`;
+        demandSpan.dataset.tooltipType = 'demand';
+        demandSpan.dataset.tooltipTerm = item.demand;
+
+        const demandIcon = document.createElement('span');
+        demandIcon.className = 'icon icon-demand';
+        demandIcon.textContent = demandIconText;
+        demandSpan.appendChild(demandIcon);
+        demandSpan.append(item.demand || 'N/A');
+
+        const stabilitySpan = document.createElement('span');
+        stabilitySpan.className = `info-chip stability-${item.stability?.toLowerCase().replace(/\s+/g, '-') || 'na'}`;
+        stabilitySpan.dataset.tooltipType = 'stability';
+        stabilitySpan.dataset.tooltipTerm = item.stability;
+
+        const stabilityIcon = document.createElement('span');
+        stabilityIcon.className = 'icon icon-stability';
+        stabilityIcon.textContent = stabilityIconText;
+        stabilitySpan.appendChild(stabilityIcon);
+        stabilitySpan.append(item.stability || 'N/A');
+
+        const obtainSpan = document.createElement('span');
+        obtainSpan.className = 'item-obtainability';
+        obtainSpan.title = obtainabilityText;
+        obtainSpan.textContent = obtainabilityText;
+
+        marketInfo.appendChild(demandSpan);
+        marketInfo.appendChild(stabilitySpan);
+        marketInfo.appendChild(obtainSpan);
+
+        content.appendChild(marketInfo);
+        card.appendChild(content);
+
         const favoriteBtn = document.createElement('button');
         favoriteBtn.className = 'add-favorite-btn';
-        favoriteBtn.innerHTML = '<i class="fa-regular fa-star"></i>';
-        favoriteBtn.title = 'Add to Favorites';
         favoriteBtn.dataset.itemId = item.id;
 
         if (favoritesList.includes(item.id)) {
             favoriteBtn.classList.add('selected');
             favoriteBtn.innerHTML = '<i class="fa-solid fa-star"></i>';
             favoriteBtn.title = 'Remove from Favorites';
+        } else {
+            favoriteBtn.innerHTML = '<i class="fa-regular fa-star"></i>';
+            favoriteBtn.title = 'Add to Favorites';
         }
 
         favoriteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             toggleFavoriteItem(item.id, favoriteBtn);
         });
-
-        const demandIconText = getStatusIcon(item.demand, 'demand');
-        const stabilityIconText = getStatusIcon(item.stability, 'stability');
-        const obtainabilityText = item.obtainability || 'N/A';
-
-        card.innerHTML += `
-            <div class="item-card-content">
-                <div class="item-card-header">
-                    <span class="item-name">${item.name}</span>
-                    <span class="item-rarity">${item.rarity}</span>
-                </div>
-                <div class="item-details">
-                    <span class="item-value ${valueClass}">${formatValue(item.value)}</span>
-                    ${
-                        !isSpecialValue
-                            ? `<span class="item-range">Range: ${item.range}</span>`
-                            : ''
-                    }
-                </div>
-            </div>
-            <div class="item-market-info">
-                <span class="info-chip demand-${item.demand?.toLowerCase().replace(/\s+/g, '-') || 'na'}" data-tooltip-type="demand" data-tooltip-term="${item.demand}">
-                    <span class="icon icon-demand">${demandIconText}</span>
-                    ${item.demand || 'N/A'}
-                </span>
-                <span class="info-chip stability-${item.stability?.toLowerCase().replace(/\s+/g, '-') || 'na'}" data-tooltip-type="stability" data-tooltip-term="${item.stability}">
-                    <span class="icon icon-stability">${stabilityIconText}</span>
-                    ${item.stability || 'N/A'}
-                </span>
-                <span class="item-obtainability" title="${obtainabilityText}">${obtainabilityText}</span>
-            </div>
-        `;
 
         card.appendChild(favoriteBtn);
 
@@ -1396,14 +1448,22 @@ const guideData = {
 
         const img = document.createElement('img');
         const imgPath = `imgs/images/${item.name.replace(/#/g, '_')}.png`;
-        console.log(`Trying image path for favorite card: ${imgPath}`);
         img.src = imgPath;
         img.alt = item.name;
         img.loading = 'lazy';
-        img.onload = () => console.log(`Loaded favorite image for ${item.name}: ${imgPath}`);
         img.onerror = () => {
-            console.warn(`Favorite image not found for ${item.name} at ${imgPath}`);
+            console.warn(`Favorite image not found for ${item.name} at ${imgPath}, showing fallback icon.`);
             img.style.display = 'none';
+
+            const fallbackIcon = document.createElement('i');
+            const iconClass = getRarityIconClass(item.rarity);
+            fallbackIcon.className = `fa-solid ${iconClass} placeholder-icon show pulsing`;
+            fallbackIcon.style.color = `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`;
+
+            const existingIcon = imgContainer.querySelector('.placeholder-icon');
+            if (existingIcon) existingIcon.remove();
+
+            imgContainer.appendChild(fallbackIcon);
         };
         imgContainer.appendChild(img);
 
@@ -1475,33 +1535,105 @@ const guideData = {
         imgContainer.className = 'item-image-container';
 
         const img = document.createElement('img');
-        const imgPath = `imgs/images/${item.name.replace(/#/g, '_')}.png`;
-        console.log(`Trying image path for detail card: ${imgPath}`);
-        img.src = imgPath;
         img.alt = item.name;
         img.loading = 'lazy';
-        img.onload = () => console.log(`Loaded detail image for ${item.name}: ${imgPath}`);
         img.onerror = () => {
-            console.warn(`Detail image not found for ${item.name} at ${imgPath}`);
+            console.warn(`Detail image not found for ${item.name}, showing fallback icon.`);
             img.style.display = 'none';
-        };
-        imgContainer.appendChild(img);
 
+            const fallbackIcon = document.createElement('i');
+            const iconClass = getRarityIconClass(item.rarity);
+            fallbackIcon.className = `fa-solid ${iconClass} placeholder-icon show pulsing`;
+            fallbackIcon.style.color = `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`;
+
+            const existingIcon = imgContainer.querySelector('.placeholder-icon');
+            if (existingIcon) existingIcon.remove();
+
+            imgContainer.appendChild(fallbackIcon);
+        };
+        const imgPath = `imgs/images/${item.name.replace(/#/g, '_')}.png`;
+        img.src = imgPath;
+        imgContainer.appendChild(img);
         card.appendChild(imgContainer);
+
+        const header = document.createElement('div');
+        header.className = 'item-card-header';
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'item-name';
+        nameSpan.textContent = item.name;
+
+        const raritySpan = document.createElement('span');
+        raritySpan.className = 'item-rarity';
+        raritySpan.textContent = item.rarity;
+
+        header.appendChild(nameSpan);
+        header.appendChild(raritySpan);
+
+        const details = document.createElement('div');
+        details.className = 'item-details';
 
         const isSpecialValue = item.value === "Owner's choice" || item.value === "???";
         const valueClass = isSpecialValue ? (item.value === "???" ? 'unknown' : 'owner-choice') : '';
 
+        const valueSpan = document.createElement('span');
+        valueSpan.className = `item-value ${valueClass}`;
+        valueSpan.textContent = formatValue(item.value);
+        details.appendChild(valueSpan);
+
+        if (!isSpecialValue) {
+            const rangeSpan = document.createElement('span');
+            rangeSpan.className = 'item-range';
+            rangeSpan.textContent = `Range: ${item.range}`;
+            details.appendChild(rangeSpan);
+        }
+
+        const marketInfo = document.createElement('div');
+        marketInfo.className = 'item-market-info';
+
         const demandIconText = getStatusIcon(item.demand, 'demand');
         const stabilityIconText = getStatusIcon(item.stability, 'stability');
         const obtainabilityText = item.obtainability || 'N/A';
-        
-        // Create favorite button
+
+        const demandSpan = document.createElement('span');
+        demandSpan.className = `info-chip demand-${item.demand?.toLowerCase().replace(/\s+/g, '-') || 'na'}`;
+        demandSpan.dataset.tooltipType = 'demand';
+        demandSpan.dataset.tooltipTerm = item.demand;
+
+        const demandIcon = document.createElement('span');
+        demandIcon.className = 'icon icon-demand';
+        demandIcon.textContent = demandIconText;
+        demandSpan.appendChild(demandIcon);
+        demandSpan.append(item.demand || 'N/A');
+
+        const stabilitySpan = document.createElement('span');
+        stabilitySpan.className = `info-chip stability-${item.stability?.toLowerCase().replace(/\s+/g, '-') || 'na'}`;
+        stabilitySpan.dataset.tooltipType = 'stability';
+        stabilitySpan.dataset.tooltipTerm = item.stability;
+
+        const stabilityIcon = document.createElement('span');
+        stabilityIcon.className = 'icon icon-stability';
+        stabilityIcon.textContent = stabilityIconText;
+        stabilitySpan.appendChild(stabilityIcon);
+        stabilitySpan.append(item.stability || 'N/A');
+
+        const obtainSpan = document.createElement('span');
+        obtainSpan.className = 'item-obtainability';
+        obtainSpan.title = obtainabilityText;
+        obtainSpan.textContent = `Obtained via: ${obtainabilityText}`;
+
+        marketInfo.appendChild(demandSpan);
+        marketInfo.appendChild(stabilitySpan);
+        marketInfo.appendChild(obtainSpan);
+
+        card.appendChild(header);
+        card.appendChild(details);
+        card.appendChild(marketInfo);
+
         const favoriteBtn = document.createElement('button');
         favoriteBtn.className = 'item-detail-favorite-btn';
         favoriteBtn.dataset.itemId = item.id;
-        
-        // Check if this item is in favorites
+
         const isFavorite = favoritesList.includes(item.id);
         if (isFavorite) {
             favoriteBtn.classList.add('selected');
@@ -1511,38 +1643,11 @@ const guideData = {
             favoriteBtn.innerHTML = '<i class="fa-regular fa-star"></i>';
             favoriteBtn.title = 'Add to Favorites';
         }
-        
-        // Add event listener for toggling favorite status
+
         favoriteBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             toggleFavoriteItem(item.id, favoriteBtn);
         });
-
-        card.innerHTML += `
-            <div class="item-card-header">
-                <span class="item-name">${item.name}</span>
-                <span class="item-rarity">${item.rarity}</span>
-            </div>
-            <div class="item-details">
-                <span class="item-value ${valueClass}">${formatValue(item.value)}</span>
-                ${
-                    !isSpecialValue
-                        ? `<span class="item-range">Range: ${item.range}</span>`
-                        : ''
-                }
-            </div>
-            <div class="item-market-info">
-                <span class="info-chip demand-${item.demand?.toLowerCase().replace(/\s+/g, '-') || 'na'}" data-tooltip-type="demand" data-tooltip-term="${item.demand}">
-                    <span class="icon icon-demand">${demandIconText}</span>
-                    ${item.demand || 'N/A'}
-                </span>
-                <span class="info-chip stability-${item.stability?.toLowerCase().replace(/\s+/g, '-') || 'na'}" data-tooltip-type="stability" data-tooltip-term="${item.stability}">
-                    <span class="icon icon-stability">${stabilityIconText}</span>
-                    ${item.stability || 'N/A'}
-                </span>
-            </div>
-            <div class="item-obtainability" title="${obtainabilityText}">Obtained via: ${obtainabilityText}</div>
-        `;
 
         card.appendChild(favoriteBtn);
 

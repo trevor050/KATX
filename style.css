@@ -762,11 +762,18 @@ main#main-content {
     box-shadow: 0 16px 40px rgba(0,0,0,0.4);
     background: linear-gradient(145deg, rgba(35, 35, 55, 0.96), rgba(20, 20, 35, 0.96));
 }
+
+/* Add this rule inside or after the .item-card:hover rule */
+.item-card:hover .item-visual-placeholder .placeholder-icon {
+    transform: translate(-50%, -50%) scale(1.15) rotate(5deg); /* Combine translate with new transforms */
+    opacity: 0.85;
+}
 .item-card:hover::before {
     opacity: 1;
     box-shadow: 0 0 22px 3px var(--rarity-glow, rgba(0, 255, 255, 0.6)),
                 inset 0 0 14px 0px var(--rarity-glow, rgba(0, 255, 255, 0.3));
 }
+
 .item-card[data-rarity="Common"] {
     --rarity-color: var(--rarity-common);
     --rarity-glow: rgba(76, 175, 80, 0.5);
@@ -841,8 +848,6 @@ main#main-content {
 }
 
 .item-visual-placeholder {
-    height: 100px;
-    display: flex;
     justify-content: center;
     align-items: center;
     margin-bottom: 1rem;
@@ -853,16 +858,47 @@ main#main-content {
     border: 1px solid rgba(255,255,255,0.1);
 }
 .item-visual-placeholder .placeholder-icon {
-    font-size: 3.2rem;
-    color: #fff;
-    opacity: 0.6;
+    font-size: 6rem;
+    opacity: 0; /* Start hidden or at a base opacity if preferred */
+    color: var(--rarity-color, var(--color-text));
     position: absolute;
-    transition: transform 0.4s ease, opacity 0.4s ease;
-    text-shadow: 0 0 8px rgba(0,0,0,0.5);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8); /* Keep initial translate */
+    pointer-events: none;
+    transition: opacity 0.4s ease, transform 0.4s ease, filter 0.4s ease; /* Ensure transform is included */
+    filter: drop-shadow(0 0 8px rgba(0,0,0,0.5));
+    z-index: 2;
 }
-.item-card:hover .item-visual-placeholder .placeholder-icon {
-    transform: scale(1.15) rotate(5deg);
+
+/* Animate icon fade-in when added */
+.item-visual-placeholder .placeholder-icon.show,
+.item-image-container .placeholder-icon.show {
+    opacity: 0.8; /* Base opacity when shown */
+    transform: translate(-50%, -50%) scale(1); /* Base scale when shown */
+}
+
+/* Subtle hover pulse effect */
+.item-visual-placeholder:hover .placeholder-icon,
+.item-image-container:hover .placeholder-icon.show {
+    /*filter: drop-shadow(0 0 12px var(--rarity-color, var(--color-primary))); */
+    transform: translate(-50%, -50%) scale(1.15);
+    opacity: 1;
+}
+
+/* Apply the same hover effects to both item card types */
+.item-card:hover .item-visual-placeholder .placeholder-icon,
+.item-card:hover .item-image-container .placeholder-icon {
+    transform: translate(-50%, -50%) scale(1.15) rotate(5deg);
     opacity: 0.85;
+}
+
+/* Optional: add a gentle pulsing animation */
+
+
+.item-visual-placeholder .placeholder-icon.pulsing,
+.item-image-container .placeholder-icon.pulsing {
+    animation: iconPulse 2s infinite ease-in-out;
 }
 
 .item-details {
@@ -4443,19 +4479,6 @@ footer#main-footer {
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
   position: relative;
-  padding-right: 1rem;
-}
-
-.mobile-view .timeline-item-link::after {
-  content: '\f35d';
-  font-family: 'Font Awesome 6 Free';
-  font-weight: 900;
-  font-size: 0.7rem;
-  position: absolute;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
-  opacity: 0.7;
 }
 
 /* Better bubble styling */
@@ -4582,6 +4605,7 @@ footer#main-footer {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
     overflow: hidden;
     border-radius: 8px;
     margin-bottom: 1rem;
@@ -4598,6 +4622,19 @@ footer#main-footer {
 
 .item-image-container img:hover {
     transform: scale(1.05);
+}
+
+/* Style fallback icon inside image container */
+.item-image-container .placeholder-icon {
+    font-size: 6rem; /* increase size significantly */
+    opacity: 0.8;
+    color: var(--rarity-color, var(--color-text));
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
 /* --- Contact Modal --- */
