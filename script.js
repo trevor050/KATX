@@ -6,7 +6,10 @@ window.REMOTE_CONFIG_KEYS = window.REMOTE_CONFIG_KEYS || {};
 window.webextApi = window.webextApi || {};
 
 
-
+// Initialize Vercel Analytics if available
+if (typeof window !== 'undefined' && window.va) {
+  window.va('pageview');
+}
 
 fetch("https://opensheet.vercel.app/1roR6dtZzzr_LQGDQ6vpuJdxRFRrgk_L3LHltBz7iVcY/Values")
   .then(res => res.json())
@@ -14,7 +17,6 @@ fetch("https://opensheet.vercel.app/1roR6dtZzzr_LQGDQ6vpuJdxRFRrgk_L3LHltBz7iVcY
     console.log(data); // You'll get rows as JSON objects!
     // Do your rendering/processing here
   });
-
 
 // Prevent errors from extension-related imports
 if (typeof determineBrowser !== 'function') {
