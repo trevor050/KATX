@@ -1411,11 +1411,8 @@ const guideData = {
                             // newPlaceholder.dataset.index = index; // Already set in create func
 
                             observer.unobserve(targetElement); // Stop observing card
-                            // Use requestAnimationFrame for DOM update
-                             requestAnimationFrame(() => {
-                                itemGrid.replaceChild(newPlaceholder, targetElement);
-                                observer.observe(newPlaceholder); // Start observing the new placeholder
-                            });
+                            itemGrid.replaceChild(newPlaceholder, targetElement);
+                            observer.observe(newPlaceholder); // Start observing the new placeholder
                             renderedIndices.delete(index);
                         }
                     }

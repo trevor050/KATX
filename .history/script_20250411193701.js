@@ -5,9 +5,6 @@ window.crossbrowserName = window.crossbrowserName || "generic";
 window.REMOTE_CONFIG_KEYS = window.REMOTE_CONFIG_KEYS || {};
 window.webextApi = window.webextApi || {};
 
-
-
-
 fetch("https://opensheet.vercel.app/1roR6dtZzzr_LQGDQ6vpuJdxRFRrgk_L3LHltBz7iVcY/Values")
   .then(res => res.json())
   .then(data => {
@@ -53,37 +50,29 @@ let allItems = []; // Initialize empty array that will be populated by fetchData
 // Helper functions needed throughout the code - DEFINED FIRST
 function cleanItemName(itemName) {
     if (!itemName) return "";
-    // Keep this for display purposes if needed elsewhere, but comparison logic will change
     return itemName.replace(/ *\([^)]*\) */g, "").trim();
 }
 
-// Helper function to find item by name - uses pre-cleaned name
+// Helper function to find item by name - used by the timeline
 function findItemByName(name) {
     // Early bail out silently if items aren't loaded yet
     if (!allItems || !Array.isArray(allItems) || allItems.length === 0) {
         return null;
     }
     
-    // Use the pre-cleaned, lowercased name for comparison
-    const nameLower = name.toLowerCase().trim(); 
-    return allItems.find(item => item.cleanedNameLower === nameLower);
+    // Clean the name first (handle special cases like items with parentheses)
+    const cleanedName = cleanItemName(name);
+    
+    // Find a case-insensitive match
+    return allItems.find(item => cleanItemName(item.name).toLowerCase() === cleanedName.toLowerCase());
 }
 
-// Utility debounce function - ADDED BACK
+// Utility debounce function
 function debounce(func, wait) {
     let timeout;
     return function(...args) {
-        const context = this;
         clearTimeout(timeout);
-        // console.log('[Debounce] Timer reset. Will execute after wait.'); // REMOVED LOG
-        timeout = setTimeout(() => {
-            // console.log('[Debounce] Executing debounced function...'); // REMOVED LOG
-            try {
-                func.apply(context, args);
-            } catch (e) {
-                console.error("Error inside debounced function call:", e);
-            }
-        }, wait);
+        timeout = setTimeout(() => func.apply(this, args), wait);
     };
 }
 
@@ -680,11 +669,7 @@ function createMobileTimeline() {
   }
 }
 
-let isMobileView = window.innerWidth <= 768; // Initialize based on initial width
-
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('--- DOMContentLoaded START ---'); // LOG: DOMContentLoaded Entry
-    try { // START try...
     // --- Global Variables & State ---
     let allItems = [];
 
@@ -764,10 +749,30 @@ const guideData = {
     const cancelConfirmBtn = document.getElementById('cancel-confirm-btn');
     const confirmActionBtn = document.getElementById('confirm-action-btn');
 
+    // *** NEW: Infinite Scroll Configuration & State ***
+    const VIRTUAL_SCROLL_BUFFER = 5; // Number of items to render above/below viewport
+    const ESTIMATED_ITEM_HEIGHT = 380; // Approx height of one card in pixels (adjust based on your final CSS including gap)
+    let currentVisibleItems = []; // Keep track of the full filtered list for scrolling
+    let virtualScrollInfo = { // Store state for the virtual scroller
+        startIndex: 0,
+        endIndex: 0,
+        scrollTop: 0,
+        itemContainer: itemGrid, // The grid element
+        scrollContainer: mainElement // The element that scrolls (might be window or main content)
+    };
+    let virtualScrollListenerAttached = false; // Flag to track if listener is active
+    // *** END NEW ***
+
     // Add event listener to update heights on resize
     const debouncedResizeHandler = debounce(() => {
         updateLayoutHeights();
-        initMobileFeatures();
+        // *** MODIFICATION: Trigger virtual scroll update on resize ***
+        if (currentSection === 'value-database' && virtualScrollListenerAttached) {
+            debouncedScrollHandler(); // Re-render based on new dimensions/heights
+        }
+        // *** END MODIFICATION ***
+        // initMobileFeatures(); // Keep this if you still need it for other features
+        handleResponsiveView(); // Use your responsive handler
     }, 250);
     window.addEventListener('resize', debouncedResizeHandler);
 
@@ -804,12 +809,11 @@ const guideData = {
             return null;
         }
         
-            // Try exact match first (case insensitive) using pre-cleaned name
-            const nameLower = name.toLowerCase().trim();
-            const exactMatch = allItems.find(i => i.cleanedNameLower === nameLower);
+        // Try exact match first (case insensitive)
+        const exactMatch = allItems.find(i => i.name.toLowerCase() === name.toLowerCase());
         if (exactMatch) return exactMatch;
         
-            // Try fuzzy search if exact match fails - compare against pre-cleaned name
+        // Try fuzzy search if exact match fails
         const threshold = 0.92; // Increased threshold for higher accuracy (was 0.8)
         let bestMatch = null;
         let highestSimilarity = 0;
@@ -827,7 +831,6 @@ const guideData = {
 
     // --- Data Fetching and Parsing ---
     async function fetchData() {
-            console.log('--- fetchData START ---'); // LOG: fetchData entry
         try {
             loadingIndicators.forEach(el => {
                 if(el) el.style.display = 'flex';
@@ -897,12 +900,10 @@ const guideData = {
             
             updateLayoutHeights();
             populateFilters();
+            displayItems(allItems);
             populateGuide();
             populateInfoNodes();
             populateTimeline();
-                
-                console.log('--- fetchData BEFORE final displayItems --- '); // LOG: Before displayItems in fetchData
-                displayItems(allItems); // Initial display after fetch
             
             // If we're in mobile view and in the update log section, create mobile timeline now that data is loaded
             if (window.innerWidth <= 768 && document.getElementById('update-log').classList.contains('active')) {
@@ -940,14 +941,12 @@ const guideData = {
             const valueNum = parseInt(rawValue, 10);
             
             const name = row.Item?.trim() || 'Unknown Item';
-                const cleanedName = name.replace(/ *\([^)]*\) */g, "").trim(); // For pre-cleaning
             const safeName = name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
             const id = `item-${index}-${safeName}`;
             
             items.push({
                 id: id,
                 name: name,
-                    cleanedNameLower: cleanedName.toLowerCase(), // Pre-processed name
                 rarity: row.Rarity?.trim() || 'Common',
                 value: row.Value?.trim() || '???',
                 valueNumeric: isNaN(valueNum)
@@ -1054,18 +1053,16 @@ const guideData = {
                 row[nameCol].trim() === ''
             ) return;
 
-                const rawValue = (row[valueCol] || '').replace(/[,\"]/g, '');
+            const rawValue = (row[valueCol] || '').replace(/[,"]/g, '');
             const valueNum = parseInt(rawValue, 10);
 
             const name = row[nameCol]?.trim() || 'Unknown Item';
             const safeName = name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
             const id = `item-${index}-${safeName}`;
-                const cleanedName = name.replace(/ *\([^)]*\) */g, "").trim(); // For pre-cleaning
 
             items.push({
                 id: id,
                 name: name,
-                    cleanedNameLower: cleanedName.toLowerCase(), // Pre-processed name
                 rarity: row[rarityCol]?.trim() || 'Common',
                 value: row[valueCol]?.trim() || '???',
                 valueNumeric: isNaN(valueNum)
@@ -1205,6 +1202,23 @@ const guideData = {
             }
         });
 
+        // *** MODIFICATION: Reset scroll position before displaying new filtered items ***
+        // This ensures the user sees the top of the new results.
+        const scrollContainer = virtualScrollInfo.scrollContainer || window;
+        if (scrollContainer === window) {
+            // Check if mainElement is the scroll target or if window is
+            if (virtualScrollInfo.scrollContainer === mainElement) {
+                mainElement.scrollTo({ top: 0, behavior: 'auto' }); // Changed to auto for instant scroll
+            } else {
+                window.scrollTo({ top: 0, behavior: 'auto' }); // Changed to auto for instant scroll
+            }
+        } else {
+            scrollContainer.scrollTop = 0;
+        }
+        virtualScrollInfo.scrollTop = 0; // Update state immediately
+        // *** END MODIFICATION ***
+
+        // Call the modified displayItems which handles virtual scroll setup
         displayItems(filteredItems);
         checkFilterStates();
     }
@@ -1212,1402 +1226,7 @@ const guideData = {
     // --- Clear Button Logic ---
     function checkFilterStates() {
         if (!clearFiltersButton || !searchBar || !rarityFilter || !obtainabilityFilter) return;
-        const isSearchActive = searchBar.value.trim() !== '';
-        const isRarityActive = rarityFilter.value !== 'all';
-        const isBasicObtainabilityActive = obtainabilityFilter.value !== 'all';
-        const isAdvFilterActive = (
-            currentAdvancedFilters.obtainability.length > 0 ||
-            currentAdvancedFilters.demand.length > 0 ||
-            currentAdvancedFilters.stability.length > 0
-        );
-
-        clearFiltersButton.disabled = !(
-            isSearchActive ||
-            isRarityActive ||
-            isBasicObtainabilityActive ||
-            isAdvFilterActive
-        );
-    }
-
-    function clearFilters() {
-        searchBar.value = '';
-        rarityFilter.value = 'all';
-        obtainabilityFilter.value = 'all';
-        sortBy.value = 'name_asc';
-
-        resetAdvancedFilters();
-        applyFiltersAndSort();
-    }
-
-    // --- UI Population ---
-    function populateFilters() {
-        if (!allItems || allItems.length === 0 ||
-            !rarityFilter || !obtainabilityFilter ||
-            !advObtainFiltersContainer) return;
-
-        const rarities = [...new Set(allItems.map(item => item.rarity))]
-            .sort((a, b) => rarityOrder.indexOf(a) - rarityOrder.indexOf(b));
-        rarityFilter.innerHTML = '<option value="all">All</option>';
-        rarities.forEach(r => {
-            const opt = document.createElement('option');
-            opt.value = r;
-            opt.textContent = r;
-            rarityFilter.appendChild(opt);
-        });
-
-        const commonSources = new Set();
-        allItems.forEach(item => {
-            const sources = item.obtainability.split(/[/,]/)
-                .map(s => s.trim())
-                .filter(s => s && s.toLowerCase() !== 'n/a' && s.length > 1);
-            sources.forEach(source => {
-                let norm = source;
-                if (norm.toLowerCase().includes('crate')) norm = 'Crates';
-                else if (norm.toLowerCase().includes('shop')) norm = 'Shop';
-                else if (norm.toLowerCase().includes('admin')) norm = 'Admin';
-                else if (norm.toLowerCase().includes('gift') || norm.toLowerCase().includes('festive')) norm = 'Event/Gift';
-                else if (norm.toLowerCase().includes('craft')) norm = 'Crafting';
-                else if (norm.toLowerCase().includes('.roll')) norm = 'Command';
-                commonSources.add(norm);
-            });
-        });
-
-        const sortedSources = [...commonSources].sort();
-        obtainabilityFilter.innerHTML = '<option value="all">All</option>';
-        sortedSources.forEach(source => {
-            const opt = document.createElement('option');
-            opt.value = source;
-            opt.textContent = source;
-            obtainabilityFilter.appendChild(opt);
-        });
-
-        const advLoader = advObtainFiltersContainer.querySelector('.loading-indicator') || advObtainFiltersContainer.querySelector('p');
-        if(advLoader) advLoader.remove();
-        advObtainFiltersContainer.innerHTML = '';
-        sortedSources.forEach(source => {
-            const label = document.createElement('label');
-            label.innerHTML = `<input type="checkbox" name="adv-obtain" value="${source}"> ${source}`;
-            advObtainFiltersContainer.appendChild(label);
-        });
-    }
-
-    function displayItems(items) {
-            console.log('--- displayItems CALLED ---'); // LOG 1: Function Entry
-            if (!itemGrid) {
-                console.error('itemGrid element not found!'); // LOG: Grid not found
-            return;
-        }
-            console.log('itemGrid found:', itemGrid); // LOG 3: Grid Found
-            itemGrid.innerHTML = ''; // Clear previous items
-
-        const isMobile = window.innerWidth <= 768;
-            console.log(`window.innerWidth: ${window.innerWidth}, isMobile: ${isMobile}`); // LOG 2: Mobile Check
-            
-            let currentItems = items; // Use a local copy
-            let itemCardHeight = 340; // Default height
-            let renderedIndices = new Set(); // Track indices with real cards
-            let cardHeightMeasured = false;
-            let itemObserver = null; // Observer instance
-
-            // --- Helper Functions for Virtual Scroll --- 
-            function createPlaceholderCard(index) {
-                const placeholder = document.createElement('div');
-                placeholder.className = 'item-placeholder';
-                placeholder.style.height = `${itemCardHeight}px`;
-                placeholder.dataset.index = index; // Store index for potential swapping
-                return placeholder;
-            }
-
-            function updateVisibleItems() {
-                if (!itemGrid) return;
-                const gridStyle = window.getComputedStyle(itemGrid);
-                const columnCount = gridStyle.getPropertyValue('grid-template-columns').split(' ').length;
-                
-                // Calculate visible range with buffer
-                const scrollTop = window.scrollY;
-                const viewportHeight = window.innerHeight;
-                // More robust calculation for grid top position relative to the document
-                const gridRect = itemGrid.getBoundingClientRect();
-                const gridTop = gridRect.top + scrollTop;
-
-                // Debugging Logs
-                console.log(`--- updateVisibleItems ---`);
-                console.log(`ScrollTop: ${scrollTop}, ViewportHeight: ${viewportHeight}, GridTop: ${gridTop}`);
-
-                // Calculate first and last potentially visible row indices
-                // Subtract gridTop from scrollTop to get scroll position *within* the grid's parent context
-                // INCREASED BUFFER from 1 to 3 rows above/below
-                const firstVisibleRow = Math.max(0, Math.floor((scrollTop - gridTop) / itemCardHeight) - 3); // Buffer 3 rows above
-                const lastVisibleRow = Math.ceil((scrollTop + viewportHeight - gridTop) / itemCardHeight) + 3; // Buffer 3 rows below
-
-                const startIndex = Math.max(0, firstVisibleRow * columnCount);
-                // Correct endIndex calculation to avoid going significantly past the last item
-                const endIndex = Math.min(currentItems.length - 1, (lastVisibleRow * columnCount) + (columnCount -1) ); 
-                
-                console.log(`Calculated Visible Range: Index ${startIndex} to ${endIndex}`);
-
-                // Get all direct children (placeholders or cards)
-                const slots = Array.from(itemGrid.children);
-
-                for (let i = 0; i < slots.length; i++) {
-                    const slot = slots[i];
-                    // Ensure slot has dataset.index before parsing
-                    if (!slot.dataset || typeof slot.dataset.index === 'undefined') continue; 
-                    
-                    const index = parseInt(slot.dataset.index, 10);
-                    const isPlaceholder = slot.classList.contains('item-placeholder');
-                    const shouldBeVisible = index >= startIndex && index <= endIndex;
-
-                    if (shouldBeVisible && isPlaceholder) {
-                        // Needs rendering: Replace placeholder with real card
-                        console.log(`Rendering item at index: ${index}`);
-                        const newItemCard = createItemCard(currentItems[index]);
-                        newItemCard.dataset.index = index; // Ensure index is set
-                        itemGrid.replaceChild(newItemCard, slot);
-                        renderedIndices.add(index);
-                        // Optional: Add animation class if desired
-                        requestAnimationFrame(() => newItemCard.classList.add('card-fade-in')); 
-                    } else if (!shouldBeVisible && !isPlaceholder) {
-                        // Needs unloading: Replace real card with placeholder
-                        console.log(`Unloading item at index: ${index}`);
-                        const newPlaceholder = createPlaceholderCard(index);
-                        itemGrid.replaceChild(newPlaceholder, slot);
-                        renderedIndices.delete(index);
-                    }
-                }
-                console.log(`--- end updateVisibleItems ---`);
-            }
-
-            // --- Intersection Observer Callback --- 
-            function handleIntersection(entries, observer) {
-                entries.forEach(entry => {
-                    const targetElement = entry.target;
-                    const index = parseInt(targetElement.dataset.index, 10);
-
-                    if (isNaN(index)) return; // Safety check
-
-                    const isPlaceholder = targetElement.classList.contains('item-placeholder');
-
-                    if (entry.isIntersecting) {
-                        // Element is entering viewport (or buffer)
-                        if (isPlaceholder) {
-                            // console.log(`Placeholder ${index} intersecting, rendering card.`); // REMOVED LOG
-                            const newItemCard = createItemCard(currentItems[index]);
-                            newItemCard.dataset.index = index;
-                            
-                            observer.unobserve(targetElement); // Stop observing placeholder
-                            // Use requestAnimationFrame for DOM update
-                            requestAnimationFrame(() => {
-                                itemGrid.replaceChild(newItemCard, targetElement);
-                                observer.observe(newItemCard); // Start observing the new card
-                            });
-                            renderedIndices.add(index);
-                        }
-                    } else {
-                        // Element is leaving viewport (or buffer)
-                        if (!isPlaceholder) { // Check if it's actually a card
-                            // console.log(`Card ${index} leaving, rendering placeholder.`); // REMOVED LOG
-                            const newPlaceholder = createPlaceholderCard(index);
-                            // newPlaceholder.dataset.index = index; // Already set in create func
-
-                            observer.unobserve(targetElement); // Stop observing card
-                            // Use requestAnimationFrame for DOM update
-                             requestAnimationFrame(() => {
-                                itemGrid.replaceChild(newPlaceholder, targetElement);
-                                observer.observe(newPlaceholder); // Start observing the new placeholder
-                            });
-                            renderedIndices.delete(index);
-                        }
-                    }
-                });
-            }
-
-            // --- Measure Actual Card Height --- 
-            // (Keep the measurement logic)
-            if (currentItems.length > 0 && !cardHeightMeasured) {
-                try {
-                    const tempCard = createItemCard(currentItems[0]);
-                    tempCard.style.position = 'absolute';
-                    tempCard.style.left = '-9999px'; // Position off-screen
-                    tempCard.style.visibility = 'hidden'; // Hide it visually
-                    itemGrid.appendChild(tempCard);
-                    const rect = tempCard.getBoundingClientRect();
-                    if (rect.height > 50) { // Basic sanity check
-                        itemCardHeight = rect.height;
-                        cardHeightMeasured = true;
-                        // console.log(`Measured itemCardHeight: ${itemCardHeight}`); // REMOVED LOG
-                    } else {
-                         console.warn('Failed to measure card height accurately, using default.');
-                    }
-                    itemGrid.removeChild(tempCard); // Clean up temporary card
-                } catch (e) {
-                    console.error('Error measuring card height:', e);
-                }
-            }
-            // ----------------------------------
-
-            // --- Main Logic --- 
-            if (isMobile) {
-                // console.log('--- Running Mobile Logic (IntersectionObserver) --- '); // REMOVED LOG
-                // Mobile: Virtual Scrolling via IntersectionObserver
-                itemGrid.innerHTML = ''; // Clear again just in case
-                renderedIndices.clear();
-
-                // Disconnect previous observer if exists
-                if (itemObserver) {
-                    itemObserver.disconnect();
-                }
-
-                // Create the observer
-                itemObserver = new IntersectionObserver(handleIntersection, {
-                    root: null, // Use viewport as root
-                    rootMargin: '600px 0px', // INCREASED MARGIN Load/unload when item is 600px from viewport edge
-                    threshold: 0.01 // ADJUSTED THRESHOLD - Trigger when slightly more than 0% visible
-                });
-
-                // 1. Render all placeholders first
-                const placeholderFragment = document.createDocumentFragment();
-                for (let i = 0; i < currentItems.length; i++) {
-                    const placeholder = createPlaceholderCard(i);
-                    placeholderFragment.appendChild(placeholder);
-                }
-                itemGrid.appendChild(placeholderFragment);
-                
-                // 2. Observe all placeholders
-                 console.log(`Observing ${itemGrid.children.length} initial placeholders...`);
-                 Array.from(itemGrid.children).forEach(placeholder => {
-                    if (placeholder.classList.contains('item-placeholder')) {
-                        itemObserver.observe(placeholder);
-                    }
-                 });
-                 
-                 // Initial items within viewport might need manual trigger 
-                 // (Observer might not fire if already intersecting on load)
-                 // Let's trigger a check shortly after setup
-                 setTimeout(() => {
-                    // console.log("Triggering initial visibility check after setup"); // REMOVED LOG
-                    const initialVisiblePlaceholders = [];
-                    const observerRootBounds = itemObserver.root ? itemObserver.root.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
-                    const margin = 600; // Must match rootMargin top/bottom
-                    
-                    Array.from(itemGrid.children).forEach(el => {
-                        if(el.classList.contains('item-placeholder')){
-                            const rect = el.getBoundingClientRect();
-                             // Check if the placeholder is roughly within the root + margin
-                            if (rect.top < (observerRootBounds.bottom + margin) && rect.bottom > (observerRootBounds.top - margin)) {
-                                initialVisiblePlaceholders.push({ target: el, isIntersecting: true });
-                            }
-                        }
-                    });
-                    if(initialVisiblePlaceholders.length > 0){
-                        handleIntersection(initialVisiblePlaceholders, itemObserver);
-                    }
-                 }, 100); // Short delay after initial render
-
-        } else {
-                // Desktop: Render all at once
-                // Ensure previous observer is disconnected if resizing
-                if (itemObserver) {
-                    itemObserver.disconnect();
-                    itemObserver = null;
-                }
-                
-            const fragment = document.createDocumentFragment();
-                items.forEach((item, index) => {
-                const card = createItemCard(item);
-                    card.dataset.index = index; // Add index for consistency if needed later
-                fragment.appendChild(card);
-            });
-            itemGrid.appendChild(fragment);
-            anime({
-                targets: '.item-card',
-                opacity: [0, 1],
-                translateY: [15, 0],
-                scale: [0.98, 1],
-                    delay: anime.stagger(10, { start: 20 }),
-                duration: 250,
-                easing: 'easeOutQuad'
-            });
-        }
-    }
-
-    function createItemCard(item) {
-        const card = document.createElement('div');
-        card.className = 'item-card';
-        card.dataset.rarity = item.rarity;
-        card.style.setProperty('--rarity-color', `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`);
-
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'item-image-container';
-
-        const img = document.createElement('img');
-        img.alt = item.name;
-            img.loading = 'lazy'; // Ensure lazy loading is active
-            img.decoding = 'async'; // Further hint for browser optimization
-        img.onerror = () => {
-            console.warn(`Image not found for ${item.name}, showing fallback icon.`);
-            img.style.display = 'none';
-
-            const fallbackIcon = document.createElement('i');
-            const iconClass = getRarityIconClass(item.rarity);
-            fallbackIcon.className = `fa-solid ${iconClass} placeholder-icon`;
-            fallbackIcon.style.color = `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`;
-
-            const existingIcon = imgContainer.querySelector('.placeholder-icon');
-            if (existingIcon) existingIcon.remove();
-
-            imgContainer.appendChild(fallbackIcon);
-        };
-        const imgPath = `imgs/images/${item.name.replace(/#/g, '_')}.png`;
-        img.src = imgPath;
-        imgContainer.appendChild(img);
-        card.appendChild(imgContainer);
-
-        const content = document.createElement('div');
-        content.className = 'item-card-content';
-
-        const header = document.createElement('div');
-        header.className = 'item-card-header';
-
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'item-name';
-        nameSpan.textContent = item.name;
-
-        const raritySpan = document.createElement('span');
-        raritySpan.className = 'item-rarity';
-        raritySpan.textContent = item.rarity;
-
-        header.appendChild(nameSpan);
-        header.appendChild(raritySpan);
-
-        const details = document.createElement('div');
-        details.className = 'item-details';
-
-        const isSpecialValue = item.value === "Owner's choice" || item.value === "???";
-        const valueClass = isSpecialValue ? (item.value === "???" ? 'unknown' : 'owner-choice') : '';
-
-        const valueSpan = document.createElement('span');
-        valueSpan.className = `item-value ${valueClass}`;
-        valueSpan.textContent = formatValue(item.value);
-        details.appendChild(valueSpan);
-
-        if (!isSpecialValue) {
-            const rangeSpan = document.createElement('span');
-            rangeSpan.className = 'item-range';
-            rangeSpan.textContent = `Range: ${item.range}`;
-            details.appendChild(rangeSpan);
-        }
-
-        content.appendChild(header);
-        content.appendChild(details);
-
-        const marketInfo = document.createElement('div');
-        marketInfo.className = 'item-market-info';
-
-        const demandIconText = getStatusIcon(item.demand, 'demand');
-        const stabilityIconText = getStatusIcon(item.stability, 'stability');
-        const obtainabilityText = item.obtainability || 'N/A';
-
-        const demandSpan = document.createElement('span');
-        demandSpan.className = `info-chip demand-${item.demand?.toLowerCase().replace(/\s+/g, '-') || 'na'}`;
-        demandSpan.dataset.tooltipType = 'demand';
-        demandSpan.dataset.tooltipTerm = item.demand;
-
-        const demandIcon = document.createElement('span');
-        demandIcon.className = 'icon icon-demand';
-        demandIcon.textContent = demandIconText;
-        demandSpan.appendChild(demandIcon);
-        demandSpan.append(item.demand || 'N/A');
-
-        const stabilitySpan = document.createElement('span');
-        stabilitySpan.className = `info-chip stability-${item.stability?.toLowerCase().replace(/\s+/g, '-') || 'na'}`;
-        stabilitySpan.dataset.tooltipType = 'stability';
-        stabilitySpan.dataset.tooltipTerm = item.stability;
-
-        const stabilityIcon = document.createElement('span');
-        stabilityIcon.className = 'icon icon-stability';
-        stabilityIcon.textContent = stabilityIconText;
-        stabilitySpan.appendChild(stabilityIcon);
-        stabilitySpan.append(item.stability || 'N/A');
-
-        const obtainSpan = document.createElement('span');
-        obtainSpan.className = 'item-obtainability';
-        obtainSpan.title = obtainabilityText;
-        obtainSpan.textContent = obtainabilityText;
-
-        marketInfo.appendChild(demandSpan);
-        marketInfo.appendChild(stabilitySpan);
-        marketInfo.appendChild(obtainSpan);
-
-        content.appendChild(marketInfo);
-        card.appendChild(content);
-
-        const favoriteBtn = document.createElement('button');
-        favoriteBtn.className = 'add-favorite-btn';
-        favoriteBtn.dataset.itemId = item.id;
-        // Add action type for delegation handler
-        favoriteBtn.dataset.action = 'toggle-favorite'; 
-
-        if (favoritesList.includes(item.id)) {
-            favoriteBtn.classList.add('selected');
-            favoriteBtn.innerHTML = '<i class="fa-solid fa-star"></i>';
-            favoriteBtn.title = 'Remove from Favorites';
-        } else {
-            favoriteBtn.innerHTML = '<i class="fa-regular fa-star"></i>';
-            favoriteBtn.title = 'Add to Favorites';
-        }
-
-        card.appendChild(favoriteBtn);
-
-        // Add item ID to card for delegation
-        card.dataset.itemId = item.id; 
-        // Add action for card click delegation
-        card.dataset.action = 'open-detail'; 
-
-        return card;
-    }
-
-    function createFavoriteCard(item) {
-        const card = document.createElement('div');
-        card.className = 'favorite-item-card';
-        card.dataset.rarity = item.rarity;
-        card.style.setProperty('--rarity-color', `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`);
-
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'item-image-container';
-
-        const img = document.createElement('img');
-        const imgPath = `imgs/images/${item.name.replace(/#/g, '_')}.png`;
-        img.src = imgPath;
-        img.alt = item.name;
-        img.loading = 'lazy';
-        img.onerror = () => {
-            console.warn(`Favorite image not found for ${item.name} at ${imgPath}, showing fallback icon.`);
-            img.style.display = 'none';
-
-            const fallbackIcon = document.createElement('i');
-            const iconClass = getRarityIconClass(item.rarity);
-            fallbackIcon.className = `fa-solid ${iconClass} placeholder-icon show pulsing`;
-            fallbackIcon.style.color = `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`;
-
-            const existingIcon = imgContainer.querySelector('.placeholder-icon');
-            if (existingIcon) existingIcon.remove();
-
-            imgContainer.appendChild(fallbackIcon);
-        };
-        imgContainer.appendChild(img);
-
-        card.appendChild(imgContainer);
-
-        const isSpecialValue = item.value === "Owner's choice" || item.value === "???";
-        const valueClass = isSpecialValue ? (item.value === "???" ? 'unknown' : 'owner-choice') : '';
-
-        const demandIcon = getStatusIcon(item.demand, 'demand');
-        const stabilityIcon = getStatusIcon(item.stability, 'stability');
-
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'remove-favorite-btn';
-        removeBtn.innerHTML = '<i class="fa-solid fa-times"></i>';
-        removeBtn.title = 'Remove from Favorites';
-        removeBtn.dataset.itemId = item.id;
-        
-        removeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            removeFavoriteItem(item.id);
-        });
-
-        card.innerHTML += `
-            <div class="favorite-card-content">
-                <div class="favorite-card-header">
-                    <span class="item-name">${item.name}</span>
-                    <span class="item-rarity">${item.rarity}</span>
-                </div>
-                <div class="item-details">
-                    <span class="item-value ${valueClass}">${formatValue(item.value)}</span>
-                    ${
-                        !isSpecialValue
-                            ? `<span class="item-range">Range: ${item.range}</span>`
-                            : ''
-                    }
-                </div>
-                <div class="item-market-info">
-                    <span class="info-chip demand-${item.demand?.toLowerCase().replace(/\s+/g, '-') || 'na'}">
-                        <span class="icon icon-demand">${demandIcon}</span>
-                        ${item.demand || 'N/A'}
-                    </span>
-                    <span class="info-chip stability-${item.stability?.toLowerCase().replace(/\s+/g, '-') || 'na'}">
-                        <span class="icon icon-stability">${stabilityIcon}</span>
-                        ${item.stability || 'N/A'}
-                    </span>
-                </div>
-                <div class="item-obtainability" title="${item.obtainability}">
-                    ${item.obtainability || 'N/A'}
-                </div>
-            </div>
-        `;
-
-        card.appendChild(removeBtn);
-        
-        card.addEventListener('click', () => {
-            openItemDetailModal(item.id);
-            if(favoritesOverlay) favoritesOverlay.classList.remove('visible');
-        });
-
-        return card;
-    }
-
-    function createDetailCard(item) {
-        const card = document.createElement('div');
-        card.className = 'item-detail-card';
-        card.style.setProperty('--rarity-color', `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`);
-
-        const imgContainer = document.createElement('div');
-        imgContainer.className = 'item-image-container';
-
-        const img = document.createElement('img');
-        img.alt = item.name;
-        img.loading = 'lazy';
-        img.onerror = () => {
-            console.warn(`Detail image not found for ${item.name}, showing fallback icon.`);
-            img.style.display = 'none';
-
-            const fallbackIcon = document.createElement('i');
-            const iconClass = getRarityIconClass(item.rarity);
-            fallbackIcon.className = `fa-solid ${iconClass} placeholder-icon show pulsing`;
-            fallbackIcon.style.color = `var(--rarity-${item.rarity?.toLowerCase() || 'common'})`;
-
-            const existingIcon = imgContainer.querySelector('.placeholder-icon');
-            if (existingIcon) existingIcon.remove();
-
-            imgContainer.appendChild(fallbackIcon);
-        };
-        const imgPath = `imgs/images/${item.name.replace(/#/g, '_')}.png`;
-        img.src = imgPath;
-        imgContainer.appendChild(img);
-        card.appendChild(imgContainer);
-
-        const header = document.createElement('div');
-        header.className = 'item-card-header';
-
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'item-name';
-        nameSpan.textContent = item.name;
-
-        const raritySpan = document.createElement('span');
-        raritySpan.className = 'item-rarity';
-        raritySpan.textContent = item.rarity;
-
-        header.appendChild(nameSpan);
-        header.appendChild(raritySpan);
-
-        const details = document.createElement('div');
-        details.className = 'item-details';
-
-        const isSpecialValue = item.value === "Owner's choice" || item.value === "???";
-        const valueClass = isSpecialValue ? (item.value === "???" ? 'unknown' : 'owner-choice') : '';
-
-        const valueSpan = document.createElement('span');
-        valueSpan.className = `item-value ${valueClass}`;
-        valueSpan.textContent = formatValue(item.value);
-        details.appendChild(valueSpan);
-
-        if (!isSpecialValue) {
-            const rangeSpan = document.createElement('span');
-            rangeSpan.className = 'item-range';
-            rangeSpan.textContent = `Range: ${item.range}`;
-            details.appendChild(rangeSpan);
-        }
-
-        const marketInfo = document.createElement('div');
-        marketInfo.className = 'item-market-info';
-
-        const demandIconText = getStatusIcon(item.demand, 'demand');
-        const stabilityIconText = getStatusIcon(item.stability, 'stability');
-        const obtainabilityText = item.obtainability || 'N/A';
-
-        const demandSpan = document.createElement('span');
-        demandSpan.className = `info-chip demand-${item.demand?.toLowerCase().replace(/\s+/g, '-') || 'na'}`;
-        demandSpan.dataset.tooltipType = 'demand';
-        demandSpan.dataset.tooltipTerm = item.demand;
-
-        const demandIcon = document.createElement('span');
-        demandIcon.className = 'icon icon-demand';
-        demandIcon.textContent = demandIconText;
-        demandSpan.appendChild(demandIcon);
-        demandSpan.append(item.demand || 'N/A');
-
-        const stabilitySpan = document.createElement('span');
-        stabilitySpan.className = `info-chip stability-${item.stability?.toLowerCase().replace(/\s+/g, '-') || 'na'}`;
-        stabilitySpan.dataset.tooltipType = 'stability';
-        stabilitySpan.dataset.tooltipTerm = item.stability;
-
-        const stabilityIcon = document.createElement('span');
-        stabilityIcon.className = 'icon icon-stability';
-        stabilityIcon.textContent = stabilityIconText;
-        stabilitySpan.appendChild(stabilityIcon);
-        stabilitySpan.append(item.stability || 'N/A');
-
-        const obtainSpan = document.createElement('span');
-        obtainSpan.className = 'item-obtainability';
-        obtainSpan.title = obtainabilityText;
-        obtainSpan.textContent = `Obtained via: ${obtainabilityText}`;
-
-        marketInfo.appendChild(demandSpan);
-        marketInfo.appendChild(stabilitySpan);
-        marketInfo.appendChild(obtainSpan);
-
-        card.appendChild(header);
-        card.appendChild(details);
-        card.appendChild(marketInfo);
-
-        const favoriteBtn = document.createElement('button');
-        favoriteBtn.className = 'item-detail-favorite-btn';
-        favoriteBtn.dataset.itemId = item.id;
-
-        const isFavorite = favoritesList.includes(item.id);
-        if (isFavorite) {
-            favoriteBtn.classList.add('selected');
-            favoriteBtn.innerHTML = '<i class="fa-solid fa-star"></i>';
-            favoriteBtn.title = 'Remove from Favorites';
-        } else {
-            favoriteBtn.innerHTML = '<i class="fa-regular fa-star"></i>';
-            favoriteBtn.title = 'Add to Favorites';
-        }
-
-        favoriteBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleFavoriteItem(item.id, favoriteBtn);
-        });
-
-        card.appendChild(favoriteBtn);
-
-        card.querySelectorAll('.info-chip').forEach(chip => {
-            chip.addEventListener('mouseenter', showTooltip);
-            chip.addEventListener('mouseleave', hideTooltip);
-        });
-
-        return card;
-    }
-
-    function getRarityIconClass(rarity) {
-        switch (rarity?.toLowerCase()) {
-            case 'contraband': return 'fa-skull-crossbones';
-            case 'mythical':   return 'fa-wand-sparkles';
-            case 'legendary':  return 'fa-star';
-            case 'unique':     return 'fa-gem';
-            case 'epic':       return 'fa-bolt';
-            case 'rare':       return 'fa-clover';
-            case 'common':     return 'fa-cube';
-            case 'stock':      return 'fa-box-open';  // Changed from fa-coins to fa-box-open
-            default:           return 'fa-question-circle';
-        }
-    }
-
-    function formatValue(value) {
-        if (value === "Owner's choice" || value === "???") return value;
-        const num = parseInt(value.replace(/[,"]/g, ''), 10);
-        return !isNaN(num) ? num.toLocaleString('en-US') : value;
-    }
-
-    function getStatusIcon(status, type) {
-        const s = status?.toLowerCase() || 'na';
-        if (type === 'demand') {
-            switch(s) {
-                case 'high':    return '▲';
-                case 'medium':  return '▶';
-                case 'normal':  return '●';
-                case 'low':     return '▼';
-                default:        return '-';
-            }
-        } else if (type === 'stability') {
-            switch(s) {
-                case 'rising':    return '↗';
-                case 'stable':    return '↔';
-                case 'unstable':  return '?';
-                case 'declining': return '↘';
-                default:          return '-';
-            }
-        }
-        return '-';
-    }
-
-    function getTooltipText(type, term) {
-        if (!term || term === 'N/A' || !type || !tooltip) return null;
-        const cleanTerm = term.trim().toLowerCase();
-        const category = guideData[type.toLowerCase()];
-        if (category && Array.isArray(category)) {
-            const item = category.find(g => g.term.trim().toLowerCase() === cleanTerm);
-            if(item) {
-                return `${item.term}: ${item.definition}`;
-            } else {
-                return `${term}: Definition unavailable`;
-            }
-        } else {
-            return null;
-        }
-    }
-
-    function populateGuide() {
-        const populateCategory = (element, categoryName) => {
-            if (!element) return;
-            const loader = element.querySelector('.loading-indicator');
-            if (loader) loader.style.display = 'none';
-            element.innerHTML = '';
-
-            const categoryData = guideData[categoryName.toLowerCase()];
-            if (!categoryData || categoryData.length === 0) {
-                element.innerHTML = '<p class="no-results">Definitions unavailable.</p>';
-                return;
-            }
-
-            const fragment = document.createDocumentFragment();
-            categoryData.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'guide-item';
-                const iconText = getStatusIcon(item.term, categoryName.toLowerCase());
-                const iconClass = `${categoryName.toLowerCase()}-${item.term.toLowerCase().replace(/\s+/g, '-')}`;
-
-                let iconColorVar = '--color-text-muted';
-                if(categoryName === 'stability') iconColorVar = '--rarity-rare';
-                else if (categoryName === 'demand') iconColorVar = '--rarity-legendary';
-                else if (categoryName === 'value') iconColorVar = '--rarity-unique';
-
-                div.innerHTML = `
-                    <strong><span class="icon ${iconClass}" style="color: var(${iconColorVar})">${iconText}</span> ${item.term}</strong>
-                    <span>${item.definition}</span>
-                `;
-                fragment.appendChild(div);
-            });
-            element.appendChild(fragment);
-        };
-
-        populateCategory(stabilityGuideEl, 'stability');
-        populateCategory(demandGuideEl, 'demand');
-        populateCategory(valueGuideEl, 'value');
-        populateCategory(document.getElementById('fusion-guide'), 'fusion');
-    }
-
-    function populateInfoNodes() {
-        if(!infoNodeContainer) return;
-        infoNodeContainer.innerHTML = '';
-
-        const nodeData = [
-            {
-                id: 'welcome',
-                iconClass: 'fa-solid fa-circle-info',
-                text: 'Mission',
-                content: `<h3><i class="fa-solid fa-circle-info"></i> Mission Brief</h3><p>${infoData.welcome || 'Welcome message unavailable.'}</p>`
-            },
-            {
-                id: 'disclaimers',
-                iconClass: 'fa-solid fa-triangle-exclamation',
-                text: 'Disclaimers',
-                content: `<h3><i class="fa-solid fa-triangle-exclamation"></i> Game Owner Disclaimers</h3>
-                          <div class="disclaimer-text">${infoData.ownerDisclaimer || 'Disclaimers unavailable.'}</div>`
-            },
-            {
-                id: 'contact',
-                iconClass: 'fa-solid fa-envelope',
-                text: 'Contact',
-                content: `<h3><i class="fa-solid fa-envelope"></i> Contact & Links</h3>
-                          <p>${infoData.contactNote || ''}</p>
-                          <p>${infoData.discordNote || ''}</p>`
-            },
-            {
-                id: 'creators',
-                iconClass: 'fa-solid fa-users',
-                text: 'Creators',
-                content: generateCreatorsHTML()
-            }
-        ];
-
-        // Position nodes in the four corners pattern
-        // Using a square pattern with consistent radius
-        const positions = [
-            { angle: -Math.PI * 0.75, radius: 75 }, // Mission (top-left)
-            { angle: -Math.PI * 0.25, radius: 75 }, // Disclaimers (top-right)
-            { angle: Math.PI * 0.75, radius: 75 },  // Contact (bottom-left)
-            { angle: Math.PI * 0.25, radius: 75 }   // Creators (bottom-right)
-        ];
-        
-        nodeData.forEach((nodeInfo, index) => {
-            const { angle, radius } = positions[index];
-            const x = 50 + radius * Math.cos(angle);
-            const y = 50 + radius * Math.sin(angle);
-
-            const node = document.createElement('div');
-            node.className = 'info-node';
-            node.style.left = `${x}%`;
-            node.style.top = `${y}%`;
-            node.style.transform = `translate(-50%, -50%)`;
-
-            node.innerHTML = `
-                <span class="node-icon"><i class="${nodeInfo.iconClass}"></i></span>
-                <span class="node-text">${nodeInfo.text}</span>
-            `;
-
-            node.addEventListener('click', (e) => {
-                e.stopPropagation();
-                displayPopup(nodeInfo.content);
-            });
-
-            infoNodeContainer.appendChild(node);
-
-            anime({
-                targets: node,
-                scale: [0, 1],
-                opacity: [0, 1],
-                delay: 300 + index * 100,
-                duration: 500,
-                easing: 'easeOutExpo'
-            });
-        });
-    }
-
-    function generateCreatorsHTML() {
-        let html = `<h3><i class="fa-solid fa-users"></i> Project Development Team</h3>`;
-        html += '<div class="creators-list">';
-        
-        // ULM and trevor16 together in the same blue box
-        html += `<p class="primary-creator"><span class="creator-role">Site Design & Development:</span> <strong>ULM Labs</strong><br><span>Discord:</span> <strong>trevor16</strong></p>`;
-        html += `<div class="secondary-creators">`;
-        html += `<p class="sub-heading">Value List Contributors:</p>`;
-        html += `<p><span>Discord:</span> trevor16</p>`;
-        html += `<p><span>Roblox:</span> My14thAddction</p>`;
-        html += `<p><span>Roblox:</span> VEN_0MS</p>`;
-        html += `<p><span>Discord:</span> iwokeup2moody</p>`;
-        html += `<p><span>Discord:</span> framw</p>`;
-        html += `</div>`;
-        html += '</div>';
-        
-        if (infoData.contactNote) {
-            html += `<p style="margin-top: 1rem; font-style: italic;">${infoData.contactNote}</p>`;
-        }
-        if (infoData.discordNote) {
-            html += `<p style="font-style: italic;">${infoData.discordNote}</p>`;
-        }
-        return html;
-    }
-    function displayPopup(contentHTML) {
-        const existingPopup = document.querySelector('.node-content-popup');
-        if (existingPopup) existingPopup.remove();
-
-        const popup = document.createElement('div');
-        popup.className = 'node-content-popup';
-        popup.innerHTML = `
-            ${contentHTML}
-            <button class="close-popup"><i class="fa-solid fa-xmark"></i></button>
-        `;
-        document.body.appendChild(popup);
-
-        let closePopupHandler;
-        let clickOutsideHandler;
-
-        closePopupHandler = () => {
-            document.removeEventListener('click', clickOutsideHandler, true);
-            popup.classList.remove('visible');
-            setTimeout(() => {
-                if (popup.parentNode) popup.remove();
-            }, 300);
-        };
-
-        clickOutsideHandler = (event) => {
-            if (!popup.contains(event.target)) closePopupHandler();
-        };
-
-        setTimeout(() => {
-            document.addEventListener('click', clickOutsideHandler, true);
-        }, 0);
-
-        requestAnimationFrame(() => popup.classList.add('visible'));
-        popup.querySelector('.close-popup').addEventListener('click', closePopupHandler);
-        popup.addEventListener('click', (e) => e.stopPropagation());
-    }
-
-    // Uses hardcoded allUpdates data with fuzzy search
-    function populateTimeline() {
-        if (!timelineEventsEl) {
-            console.warn("Timeline events element not found");
-            return;
-        }
-        const loader = timelineEventsEl.querySelector('.loading-indicator');
-        if (loader) loader.style.display = 'none';
-        timelineEventsEl.innerHTML = '';
-
-        if (!allUpdates || allUpdates.length === 0) {
-            timelineEventsEl.innerHTML = '<p class="no-results" style="text-align: center;">No update history found.</p>';
-            return;
-        }
-
-        const fragment = document.createDocumentFragment();
-        allUpdates.forEach((eventData, index) => {
-            const eventDiv = document.createElement('div');
-            eventDiv.className = 'timeline-event';
-            eventDiv.style.setProperty('--i', index);
-
-            let changesHTML = '';
-            eventData.changes.forEach(change => {
-                let changeClass = 'neutral';
-                let arrow = '<i class="fa-solid fa-minus"></i>';
-                let detailHTML = '';
-                let itemInfo = null;
-                let itemNameForLink = null;
-
-                if (change.type === 'value' || change.type === 'other') {
-                    itemNameForLink = change.item;
-                    // Use fuzzy search here
-                    itemInfo = findItemFuzzy(itemNameForLink);
-                } else if (change.type === 'note' && change.action === 'Added' && !change.detail.includes('page') && !change.detail.includes('(oops)')) {
-                    itemNameForLink = cleanItemName(change.detail);
-                    // Use fuzzy search here too
-                    itemInfo = findItemFuzzy(itemNameForLink);
-                }
-
-                const rarityAttr = itemInfo ? `data-rarity="${itemInfo.rarity}"` : '';
-                const rarityStyle = itemInfo ? `style="--rarity-color: var(--rarity-${itemInfo.rarity.toLowerCase()})"` : '';
-
-                if (change.type === 'value') {
-                    const oldValue = parseInt(change.old?.replace(/,/g, ''), 10);
-                    const newValue = parseInt(change.new?.replace(/,/g, ''), 10);
-
-                    if (!isNaN(oldValue) && !isNaN(newValue)) {
-                        if (newValue > oldValue) {
-                            changeClass = 'increase';
-                            arrow = '<i class="fa-solid fa-caret-up"></i>';
-                        } else if (newValue < oldValue) {
-                            changeClass = 'decrease';
-                            arrow = '<i class="fa-solid fa-caret-down"></i>';
-                        } else {
-                            arrow = '<i class="fa-solid fa-arrows-left-right"></i>';
-                        }
-                    } else {
-                        arrow = '<i class="fa-solid fa-arrow-right"></i>';
-                    }
-                    
-                    // Calculate difference and percentage for the new format
-                    const difference = newValue - oldValue;
-                    
-                    // Cap percentChange at 99.9% for massive decreases/increases
-                    let percentChange = oldValue > 0 ? Math.round((difference / oldValue) * 100) : 0;
-                    if (Math.abs(percentChange) >= 100) {
-                        percentChange = percentChange > 0 ? 99.9 : -99.9;
-                    }
-                    
-                    const changePrefix = difference >= 0 ? '+' : '-';
-                    const absDifference = Math.abs(difference);
-                    
-                    detailHTML = `
-                        <strong class="timeline-item-link" data-item-id="${itemInfo?.id || ''}" ${rarityAttr} ${rarityStyle}>
-                            <i class="fa-solid fa-gem"></i> ${itemNameForLink}:
-                        </strong>
-                        <div class="change-details">
-                            <span class="value-difference ${changeClass}">${changePrefix}${absDifference}</span>
-                            <span class="value-range">${change.old} → ${change.new}</span>
-                            <span class="value-percentage ${changeClass}">${difference >= 0 ? '' : '-'}${Math.abs(percentChange)}%</span>
-                        </div>
-                    `;
-                } else if (change.type === 'note') {
-                    detailHTML = `
-                        <strong ${itemInfo
-                            ? `class="timeline-item-link" data-item-id="${itemInfo.id}" ${rarityAttr} ${rarityStyle}`
-                            : ''
-                        }>
-                            <i class="fa-solid fa-circle-info"></i> ${change.action}:
-                        </strong> ${change.detail}
-                    `;
-                    changeClass = 'neutral';
-                    arrow = '<i class="fa-solid fa-plus"></i>';
-                } else if (change.type === 'other') {
-                    detailHTML = `
-                        <strong class="timeline-item-link" data-item-id="${itemInfo?.id || ''}" ${rarityAttr} ${rarityStyle}>
-                            <i class="fa-solid fa-circle-info"></i> ${itemNameForLink}:
-                        </strong> ${change.detail}
-                    `;
-                    changeClass = 'neutral';
-                } else {
-                    detailHTML = change.raw || '';
-                    changeClass = 'neutral';
-                }
-
-                changesHTML += `<div class="event-change ${changeClass}">${detailHTML}</div>`;
-            });
-
-            eventDiv.innerHTML = `
-                <span class="event-date">${eventData.date}</span>
-                <div class="event-changes-container">
-                    ${changesHTML}
-                </div>
-            `;
-            fragment.appendChild(eventDiv);
-        });
-
-        timelineEventsEl.appendChild(fragment);
-
-        timelineEventsEl.querySelectorAll('.timeline-item-link').forEach(link => {
-            link.addEventListener('click', handleTimelineItemClick);
-        });
-        
-        // Initialize mobile features - Now called directly here
-        initMobileFeatures();
-    }
-
-    // --- Tooltips ---
-    function showTooltip(event) {
-        if (!tooltip) return;
-        const element = event.currentTarget;
-        const type = element.dataset.tooltipType;
-        const term = element.dataset.tooltipTerm;
-        const text = getTooltipText(type, term);
-        if (!text) {
-            hideTooltip();
-            return;
-        }
-
-        tooltip.textContent = text;
-        tooltip.style.display = 'block';
-
-        const elementRect = element.getBoundingClientRect();
-        const tooltipRect = tooltip.getBoundingClientRect();
-        const scrollX = window.scrollX || window.pageXOffset;
-        const scrollY = window.scrollY || window.pageYOffset;
-
-        let top = elementRect.top + scrollY - tooltipRect.height - 8;
-        let left = elementRect.left + scrollX + (elementRect.width / 2) - (tooltipRect.width / 2);
-
-        if (left < scrollX + 5) left = scrollX + 5;
-        if (left + tooltipRect.width > window.innerWidth + scrollX - 5) {
-            left = window.innerWidth + scrollX - tooltipRect.width - 5;
-        }
-        if (top < scrollY + 5) {
-            top = elementRect.bottom + scrollY + 8;
-        }
-
-        tooltip.style.left = `${left}px`;
-        tooltip.style.top = `${top}px`;
-
-        requestAnimationFrame(() => tooltip.classList.add('visible'));
-    }
-
-    function hideTooltip() {
-        if(tooltip) tooltip.classList.remove('visible');
-    }
-
-    // --- Favorites Functionality ---
-    function toggleFavoriteItem(itemId, buttonElement) {
-        if (!itemId) {
-            console.error("Attempted to toggle favorite with invalid itemId");
-            return;
-        }
-        
-        // Ensure favoritesList is an array
-        if (!Array.isArray(favoritesList)) {
-            console.error("favoritesList is not an array, resetting");
-            favoritesList = [];
-        }
-        
-        const index = favoritesList.indexOf(itemId);
-        if (index > -1) {
-            // Remove from favorites
-            favoritesList.splice(index, 1);
-            console.log(`Removed ${itemId} from favorites`);
-            
-            // Update button if provided
-            if (buttonElement) {
-                buttonElement.classList.remove('selected');
-                buttonElement.innerHTML = '<i class="fa-regular fa-star"></i>';
-                buttonElement.title = 'Add to Favorites';
-            }
-        } else {
-            // Add to favorites
-            favoritesList.push(itemId);
-            console.log(`Added ${itemId} to favorites`);
-            
-            // Update button if provided
-            if (buttonElement) {
-                buttonElement.classList.add('selected');
-                buttonElement.innerHTML = '<i class="fa-solid fa-star"></i>';
-                buttonElement.title = 'Remove from Favorites';
-            }
-        }
-        
-        // Update all UI elements
-        updateFavoritesUI();
-        saveFavoritesToStorage();
-    }
-
-    function updateFavoritesUI() {
-        // Ensure we have a valid favorites list
-        if (!Array.isArray(favoritesList)) {
-            console.error("favoritesList is not an array in updateFavoritesUI");
-            favoritesList = [];
-        }
-        
-        const count = favoritesList.length;
-        console.log(`Updating favorites UI with ${count} items`);
-        
-        // Update counter
-        if (favoritesCountSpan) {
-            favoritesCountSpan.textContent = count;
-        }
-        
-        // Update favorites button
-        if (favoritesButton) {
-            favoritesButton.disabled = count === 0;
-        }
-        
-        // Update all favorite buttons on items in the main item grid
-        document.querySelectorAll('.add-favorite-btn').forEach(btn => {
-            const itemId = btn.dataset.itemId;
-            const isFavorite = favoritesList.includes(itemId);
-            
-            btn.classList.toggle('selected', isFavorite);
-            btn.innerHTML = isFavorite ? 
-                '<i class="fa-solid fa-star"></i>' : 
-                '<i class="fa-regular fa-star"></i>';
-            btn.title = isFavorite ? 'Remove from Favorites' : 'Add to Favorites';
-        });
-        
-        // Update detail view favorite button if modal is open
-        document.querySelectorAll('.item-detail-favorite-btn').forEach(btn => {
-            const itemId = btn.dataset.itemId;
-            const isFavorite = favoritesList.includes(itemId);
-            
-            btn.classList.toggle('selected', isFavorite);
-            btn.innerHTML = isFavorite ? 
-                '<i class="fa-solid fa-star"></i>' : 
-                '<i class="fa-regular fa-star"></i>';
-            btn.title = isFavorite ? 'Remove from Favorites' : 'Add to Favorites';
-        });
-        
-        // Update favorites overlay if visible
-        if (favoritesOverlay && favoritesOverlay.classList.contains('visible')) {
-            populateFavoritesOverlay();
-        }
-    }
-
-    function populateFavoritesOverlay() {
-        if(!favoritesItemsContainer) return;
-        favoritesItemsContainer.innerHTML = '';
-
-        if (favoritesList.length === 0) {
-            favoritesItemsContainer.innerHTML = '<p class="no-favorites-message">No favorites selected. Add items to your favorites by clicking the star icon on any item card.</p>';
-            if(clearFavoritesButton) clearFavoritesButton.style.display = 'none';
-            return;
-        }
-
-        if(clearFavoritesButton) clearFavoritesButton.style.display = 'block';
-
-        favoritesList.forEach(itemId => {
-            const item = allItems.find(i => i.id === itemId);
-            if (item) {
-                const favoriteCard = createFavoriteCard(item);
-                favoritesItemsContainer.appendChild(favoriteCard);
-            }
-        });
-    }
-
-    function removeFavoriteItem(itemId) {
-        const index = favoritesList.indexOf(itemId);
-        if (index > -1) {
-            favoritesList.splice(index, 1);
-            updateFavoritesUI();
-            saveFavoritesToStorage();
-        }
-    }
-    
-    function clearAllFavorites() {
-        if (favoritesList.length === 0) return;
-        
-        showConfirmationModal(() => {
-            favoritesList = [];
-            updateFavoritesUI();
-            saveFavoritesToStorage();
-            hideConfirmationModal();
-        });
-    }
-    
-    function showConfirmationModal(onConfirm) {
-        if (!confirmationModal) return;
-        
-        // Store the callback function for later use
-        confirmActionBtn.onclick = onConfirm;
-        
-        // Show the modal with animation
-        confirmationModal.classList.add('visible');
-        
-        // Add subtle entrance animation for the modal content
-        anime({
-            targets: '.confirmation-icon',
-            scale: [0.5, 1],
-            opacity: [0, 1],
-            duration: 400,
-            easing: 'easeOutBack'
-        });
-        
-        // Set up escape key to cancel
-        document.addEventListener('keydown', handleConfirmEscapeKey);
-    }
-    
-    function hideConfirmationModal() {
-        if (!confirmationModal) return;
-        confirmationModal.classList.remove('visible');
-        document.removeEventListener('keydown', handleConfirmEscapeKey);
-    }
-    
-    function handleConfirmEscapeKey(e) {
-        if (e.key === 'Escape') {
-            hideConfirmationModal();
-        }
-    }
-
-    // --- Navigation & Transition Logic ---
-    function switchSection(targetSectionId) {
-        if (targetSectionId === currentSection || isTransitioning) return;
-        isTransitioning = true;
-
-        const currentActiveSection = document.getElementById(currentSection);
-        const targetSection = document.getElementById(targetSectionId);
-
-        const currentActiveButton = document.querySelector(`.nav-button[data-section="${currentSection}"]`);
-        const targetButton = document.querySelector(`.nav-button[data-section="${targetSectionId}"]`);
-
-        if (nexusCtaButton) {
-            nexusCtaButton.style.display = (targetSectionId === 'info-hub') ? 'inline-block' : 'none';
-        }
-
-        // Apply transition-out class to current section
-        if (currentActiveSection) {
-            currentActiveSection.classList.add('transitioning-out');
-            currentActiveSection.classList.remove('active');
-        }
-        if (currentActiveButton) currentActiveButton.classList.remove('active');
-        if (targetButton) targetButton.classList.add('active');
-
-        // Use a shorter transition time for smoother switching
-        setTimeout(() => {
-            if (currentActiveSection) {
-                currentActiveSection.style.display = 'none';
-                currentActiveSection.classList.remove('transitioning-out');
-            }
-            
-            // Make target section visible first, then add active class for animation
-            if (targetSection) {
-                targetSection.style.display = 'flex';
-                
-                // Force browser to recognize the display change before adding the active class
-                void targetSection.offsetWidth; // Trigger reflow
-                
-                requestAnimationFrame(() => {
-                    targetSection.classList.add('active');
-                });
-            }
-            
-            currentSection = targetSectionId;
-            isTransitioning = false;
-            
-            // If switching to update-log and we're on mobile, generate the mobile timeline
-            if (targetSectionId === 'update-log' && window.innerWidth <= 768) {
-                setTimeout(() => {
-                    if (allItems && allItems.length > 0) {
-                        createMobileTimeline();
-                    } else {
-                        console.log("Waiting for items to load before creating mobile timeline...");
-                        // We'll create the timeline after data is loaded
-                    }
-                }, 100);
-            }
-        }, 200);
-
-        const existingPopup = document.querySelector('.node-content-popup.visible');
-        if (existingPopup) {
-            existingPopup.classList.remove('visible');
-            setTimeout(() => {
-                if(existingPopup.parentNode) existingPopup.remove();
-            }, 200);
-        }
-    }
-
-    // --- Handle Clicking Item in Timeline or Grid ---
-    function handleTimelineItemClick(event) {
-        event.preventDefault();
-        event.stopPropagation();
-        
-        const itemId = event.currentTarget.dataset.itemId;
-        if (!itemId) {
-            console.warn("No item ID found on clicked timeline element");
-            return;
-        }
-        
-        // Open the item detail modal
-        openItemDetailModal(itemId);
-    }
-
-    // --- Item Detail Modal Logic ---
-    function openItemDetailModal(itemId) {
-        const item = allItems.find(i => i.id === itemId);
-        if (!item || !itemDetailModal || !itemDetailCardContainer) return;
-
-        itemDetailCardContainer.innerHTML = '<div class="loading-indicator">Loading...</div>';
-
-        const detailCard = createDetailCard(item);
-        itemDetailCardContainer.innerHTML = '';
-        itemDetailCardContainer.appendChild(detailCard);
-
-        itemDetailModal.classList.add('visible');
-    }
-
-    function closeItemDetailModal() {
-        if(itemDetailModal) itemDetailModal.classList.remove('visible');
-    }
-
-    // --- Advanced Filter Modal Logic ---
-    function openAdvancedFilters() {
-        if (!advancedFilterOverlay) return;
-        populateAdvancedFilterCheckboxes();
-        advancedFilterOverlay.classList.add('visible');
-    }
-
-    function closeAdvancedFilters() {
-        if (advancedFilterOverlay) advancedFilterOverlay.classList.remove('visible');
-    }
-
-    function populateAdvancedFilterCheckboxes() {
-        document.querySelectorAll('#adv-obtain-filters input[type="checkbox"]').forEach(cb => {
-            cb.checked = currentAdvancedFilters.obtainability.includes(cb.value);
-        });
-        document.querySelectorAll('#adv-demand-filters input[type="checkbox"]').forEach(cb => {
-            cb.checked = currentAdvancedFilters.demand.includes(cb.value);
-        });
-        document.querySelectorAll('#adv-stability-filters input[type="checkbox"]').forEach(cb => {
-            cb.checked = currentAdvancedFilters.stability.includes(cb.value);
-        });
-    }
-
-    function applyAdvancedFilters() {
-        currentAdvancedFilters.obtainability = Array.from(document.querySelectorAll('#adv-obtain-filters input:checked')).map(cb => cb.value);
-        currentAdvancedFilters.demand = Array.from(document.querySelectorAll('#adv-demand-filters input:checked')).map(cb => cb.value);
-        currentAdvancedFilters.stability = Array.from(document.querySelectorAll('#adv-stability-filters input:checked')).map(cb => cb.value);
-
-        // Reset basic if advanced is used
-        if (currentAdvancedFilters.obtainability.length > 0 && obtainabilityFilter) {
-            obtainabilityFilter.value = 'all';
-        }
-
-        closeAdvancedFilters();
-        applyFiltersAndSort();
-    }
-
-    function resetAdvancedFilters() {
-        currentAdvancedFilters.obtainability = [];
-        currentAdvancedFilters.demand = [];
-        currentAdvancedFilters.stability = [];
-
-        document.querySelectorAll('#advanced-filter-overlay input[type="checkbox"]').forEach(cb => cb.checked = false);
-        checkFilterStates();
-    }
-
     // --- Event Listeners ---
-        console.log('Attaching base event listeners...'); // LOG: Before base listeners
     navButtons.forEach(button => {
         button.addEventListener('click', () => {
             const targetSection = button.dataset.section;
@@ -2631,7 +1250,6 @@ const guideData = {
     }
 
     // Basic filter listeners + check state
-        console.log('Attaching filter event listeners...'); // LOG: Before filter listeners
     if(searchBar) searchBar.addEventListener('input', () => {
         applyFiltersAndSort();
     });
@@ -2689,43 +1307,7 @@ const guideData = {
         if (e.target === itemDetailModal) closeItemDetailModal();
     });
 
-    // --- Add Delegated Event Listeners to Item Grid ---
-    if (itemGrid) {
-        // Click Handler (Card click, Favorite button)
-        itemGrid.addEventListener('click', (e) => {
-            const target = e.target;
-            const card = target.closest('.item-card');
-            const favoriteButton = target.closest('.add-favorite-btn');
-
-            if (favoriteButton && card && favoriteButton.dataset.action === 'toggle-favorite') {
-                e.stopPropagation(); // Prevent card click if favorite is clicked
-                const itemId = favoriteButton.dataset.itemId;
-                toggleFavoriteItem(itemId, favoriteButton);
-            } else if (card && card.dataset.action === 'open-detail') {
-                const itemId = card.dataset.itemId;
-                openItemDetailModal(itemId);
-            }
-        });
-
-        // Tooltip Handlers (Hover on info chips)
-        itemGrid.addEventListener('mouseover', (e) => {
-            const chip = e.target.closest('.info-chip');
-            if (chip && chip.dataset.tooltipType) {
-                showTooltip(e); // Pass the event object to showTooltip
-            }
-        });
-
-        itemGrid.addEventListener('mouseout', (e) => {
-             const chip = e.target.closest('.info-chip');
-             if (chip && chip.dataset.tooltipType) {
-                hideTooltip();
-            }
-        });
-    }
-    // --------------------------------------------------
-
     // --- Initial Load ---
-    console.log('Calling fetchData inside DOMContentLoaded...'); // LOG: Before fetchData call
     fetchData();
     
     // Insert the styles for the creators list
@@ -2856,28 +1438,28 @@ const guideData = {
     if (detailContainer) {
         observer.observe(detailContainer, { childList: true, subtree: true });
     }
-    } catch (error) {
-        console.error("Error during DOMContentLoaded initialization:", error); // LOG: Catch initialization errors
-    }
-    console.log('--- DOMContentLoaded END ---'); // LOG: DOMContentLoaded End
-
-    // Independent scroll position logging
-    setInterval(() => {
-        console.log(`[Periodic Log] window.scrollY: ${window.scrollY}`);
-    }, 5000); // Log every 5 seconds
-
 });
 
-// --- Initialize Mobile Features --- // (This section might be redundant or misplaced)
-/*
+// --- Initialize Mobile Features ---
+// This function was refactored and replaced with initializeResponsiveFeatures
+// Remove this to fix the error: Uncaught ReferenceError: timelineEventsEl is not defined
+
+// Call this function after loading timeline events
 document.addEventListener('DOMContentLoaded', () => {
+    // Existing initialization code
+    // ...
+    
+    // Initialize mobile-specific features
     initializeResponsiveFeatures();
+    
+    // Update heights on page load
     updateLayoutHeights();
+    
+    // Listen for resize events to adapt layout
     window.addEventListener('resize', () => {
         initializeResponsiveFeatures();
     });
 });
-*/
 
 function initParticleSystem() {
     const particleCanvas = document.getElementById('particle-canvas');

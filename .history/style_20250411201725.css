@@ -737,9 +737,6 @@ main#main-content {
     box-shadow: 0 6px 20px rgba(0,0,0,0.3);
     cursor: pointer;
     animation: subtlePulse 8s infinite ease-in-out alternate;
-    /* Performance Optimization */
-    content-visibility: auto;
-    contain-intrinsic-height: 340px; /* Approx size before content renders fully */
 }
 @keyframes subtlePulse {
     0% {
@@ -4729,7 +4726,4 @@ footer#main-footer {
     border-radius: 8px;
     box-sizing: border-box;
     /* Height is set inline by JS */
-    /* Performance Optimization */
-    content-visibility: auto;
-    contain-intrinsic-height: 340px; /* Fallback size - JS should set height */
 }

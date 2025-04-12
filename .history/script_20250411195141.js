@@ -5,9 +5,6 @@ window.crossbrowserName = window.crossbrowserName || "generic";
 window.REMOTE_CONFIG_KEYS = window.REMOTE_CONFIG_KEYS || {};
 window.webextApi = window.webextApi || {};
 
-
-
-
 fetch("https://opensheet.vercel.app/1roR6dtZzzr_LQGDQ6vpuJdxRFRrgk_L3LHltBz7iVcY/Values")
   .then(res => res.json())
   .then(data => {
@@ -53,20 +50,21 @@ let allItems = []; // Initialize empty array that will be populated by fetchData
 // Helper functions needed throughout the code - DEFINED FIRST
 function cleanItemName(itemName) {
     if (!itemName) return "";
-    // Keep this for display purposes if needed elsewhere, but comparison logic will change
     return itemName.replace(/ *\([^)]*\) */g, "").trim();
 }
 
-// Helper function to find item by name - uses pre-cleaned name
+// Helper function to find item by name - used by the timeline
 function findItemByName(name) {
     // Early bail out silently if items aren't loaded yet
     if (!allItems || !Array.isArray(allItems) || allItems.length === 0) {
         return null;
     }
     
-    // Use the pre-cleaned, lowercased name for comparison
-    const nameLower = name.toLowerCase().trim(); 
-    return allItems.find(item => item.cleanedNameLower === nameLower);
+    // Clean the name first (handle special cases like items with parentheses)
+    const cleanedName = cleanItemName(name);
+    
+    // Find a case-insensitive match
+    return allItems.find(item => cleanItemName(item.name).toLowerCase() === cleanedName.toLowerCase());
 }
 
 // Utility debounce function - ADDED BACK
@@ -75,15 +73,7 @@ function debounce(func, wait) {
     return function(...args) {
         const context = this;
         clearTimeout(timeout);
-        // console.log('[Debounce] Timer reset. Will execute after wait.'); // REMOVED LOG
-        timeout = setTimeout(() => {
-            // console.log('[Debounce] Executing debounced function...'); // REMOVED LOG
-            try {
-                func.apply(context, args);
-            } catch (e) {
-                console.error("Error inside debounced function call:", e);
-            }
-        }, wait);
+        timeout = setTimeout(() => func.apply(context, args), wait);
     };
 }
 
@@ -680,11 +670,7 @@ function createMobileTimeline() {
   }
 }
 
-let isMobileView = window.innerWidth <= 768; // Initialize based on initial width
-
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('--- DOMContentLoaded START ---'); // LOG: DOMContentLoaded Entry
-    try { // START try...
     // --- Global Variables & State ---
     let allItems = [];
 
@@ -804,12 +790,11 @@ const guideData = {
             return null;
         }
         
-            // Try exact match first (case insensitive) using pre-cleaned name
-            const nameLower = name.toLowerCase().trim();
-            const exactMatch = allItems.find(i => i.cleanedNameLower === nameLower);
+        // Try exact match first (case insensitive)
+        const exactMatch = allItems.find(i => i.name.toLowerCase() === name.toLowerCase());
         if (exactMatch) return exactMatch;
         
-            // Try fuzzy search if exact match fails - compare against pre-cleaned name
+        // Try fuzzy search if exact match fails
         const threshold = 0.92; // Increased threshold for higher accuracy (was 0.8)
         let bestMatch = null;
         let highestSimilarity = 0;
@@ -827,7 +812,6 @@ const guideData = {
 
     // --- Data Fetching and Parsing ---
     async function fetchData() {
-            console.log('--- fetchData START ---'); // LOG: fetchData entry
         try {
             loadingIndicators.forEach(el => {
                 if(el) el.style.display = 'flex';
@@ -897,12 +881,10 @@ const guideData = {
             
             updateLayoutHeights();
             populateFilters();
+            displayItems(allItems);
             populateGuide();
             populateInfoNodes();
             populateTimeline();
-                
-                console.log('--- fetchData BEFORE final displayItems --- '); // LOG: Before displayItems in fetchData
-                displayItems(allItems); // Initial display after fetch
             
             // If we're in mobile view and in the update log section, create mobile timeline now that data is loaded
             if (window.innerWidth <= 768 && document.getElementById('update-log').classList.contains('active')) {
@@ -940,14 +922,12 @@ const guideData = {
             const valueNum = parseInt(rawValue, 10);
             
             const name = row.Item?.trim() || 'Unknown Item';
-                const cleanedName = name.replace(/ *\([^)]*\) */g, "").trim(); // For pre-cleaning
             const safeName = name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
             const id = `item-${index}-${safeName}`;
             
             items.push({
                 id: id,
                 name: name,
-                    cleanedNameLower: cleanedName.toLowerCase(), // Pre-processed name
                 rarity: row.Rarity?.trim() || 'Common',
                 value: row.Value?.trim() || '???',
                 valueNumeric: isNaN(valueNum)
@@ -1054,18 +1034,16 @@ const guideData = {
                 row[nameCol].trim() === ''
             ) return;
 
-                const rawValue = (row[valueCol] || '').replace(/[,\"]/g, '');
+            const rawValue = (row[valueCol] || '').replace(/[,"]/g, '');
             const valueNum = parseInt(rawValue, 10);
 
             const name = row[nameCol]?.trim() || 'Unknown Item';
             const safeName = name.replace(/[^a-z0-9]/gi, '-').toLowerCase();
             const id = `item-${index}-${safeName}`;
-                const cleanedName = name.replace(/ *\([^)]*\) */g, "").trim(); // For pre-cleaning
 
             items.push({
                 id: id,
                 name: name,
-                    cleanedNameLower: cleanedName.toLowerCase(), // Pre-processed name
                 rarity: row[rarityCol]?.trim() || 'Common',
                 value: row[valueCol]?.trim() || '???',
                 valueNumeric: isNaN(valueNum)
@@ -1292,230 +1270,118 @@ const guideData = {
     }
 
     function displayItems(items) {
-            console.log('--- displayItems CALLED ---'); // LOG 1: Function Entry
-            if (!itemGrid) {
-                console.error('itemGrid element not found!'); // LOG: Grid not found
-            return;
-        }
-            console.log('itemGrid found:', itemGrid); // LOG 3: Grid Found
-            itemGrid.innerHTML = ''; // Clear previous items
+        if (!itemGrid) return;
+        itemGrid.innerHTML = ''; // Clear previous items
 
         const isMobile = window.innerWidth <= 768;
-            console.log(`window.innerWidth: ${window.innerWidth}, isMobile: ${isMobile}`); // LOG 2: Mobile Check
+        let currentItems = items; // Use a local copy
+        let itemCardHeight = 340; // Approximate height based on CSS min-height
+        let renderedIndices = new Set(); // Track indices with real cards
+        let scrollListener = null; // To hold the debounced scroll listener
+
+        // --- Helper Functions for Virtual Scroll --- 
+        function createPlaceholderCard(index) {
+            const placeholder = document.createElement('div');
+            placeholder.className = 'item-placeholder';
+            placeholder.style.height = `${itemCardHeight}px`;
+            placeholder.dataset.index = index; // Store index for potential swapping
+            return placeholder;
+        }
+
+        function updateVisibleItems() {
+            if (!itemGrid) return;
+            const gridStyle = window.getComputedStyle(itemGrid);
+            const columnCount = gridStyle.getPropertyValue('grid-template-columns').split(' ').length;
             
-            let currentItems = items; // Use a local copy
-            let itemCardHeight = 340; // Default height
-            let renderedIndices = new Set(); // Track indices with real cards
-            let cardHeightMeasured = false;
-            let itemObserver = null; // Observer instance
+            // Calculate visible range with buffer
+            const scrollTop = window.scrollY;
+            const viewportHeight = window.innerHeight;
+            // More robust calculation for grid top position relative to the document
+            const gridRect = itemGrid.getBoundingClientRect();
+            const gridTop = gridRect.top + scrollTop;
 
-            // --- Helper Functions for Virtual Scroll --- 
-            function createPlaceholderCard(index) {
-                const placeholder = document.createElement('div');
-                placeholder.className = 'item-placeholder';
-                placeholder.style.height = `${itemCardHeight}px`;
-                placeholder.dataset.index = index; // Store index for potential swapping
-                return placeholder;
-            }
+            // Debugging Logs
+            console.log(`--- updateVisibleItems ---`);
+            console.log(`ScrollTop: ${scrollTop}, ViewportHeight: ${viewportHeight}, GridTop: ${gridTop}`);
 
-            function updateVisibleItems() {
-                if (!itemGrid) return;
-                const gridStyle = window.getComputedStyle(itemGrid);
-                const columnCount = gridStyle.getPropertyValue('grid-template-columns').split(' ').length;
+            // Calculate first and last potentially visible row indices
+            // Subtract gridTop from scrollTop to get scroll position *within* the grid's parent context
+            const firstVisibleRow = Math.max(0, Math.floor((scrollTop - gridTop) / itemCardHeight) - 1); // Buffer 1 row above
+            const lastVisibleRow = Math.ceil((scrollTop + viewportHeight - gridTop) / itemCardHeight) + 1; // Buffer 1 row below
+
+            const startIndex = Math.max(0, firstVisibleRow * columnCount);
+            // Correct endIndex calculation to avoid going significantly past the last item
+            const endIndex = Math.min(currentItems.length - 1, (lastVisibleRow * columnCount) + (columnCount -1) ); 
+            
+            console.log(`Calculated Visible Range: Index ${startIndex} to ${endIndex}`);
+
+            // Get all direct children (placeholders or cards)
+            const slots = Array.from(itemGrid.children);
+
+            for (let i = 0; i < slots.length; i++) {
+                const slot = slots[i];
+                // Ensure slot has dataset.index before parsing
+                if (!slot.dataset || typeof slot.dataset.index === 'undefined') continue; 
                 
-                // Calculate visible range with buffer
-                const scrollTop = window.scrollY;
-                const viewportHeight = window.innerHeight;
-                // More robust calculation for grid top position relative to the document
-                const gridRect = itemGrid.getBoundingClientRect();
-                const gridTop = gridRect.top + scrollTop;
+                const index = parseInt(slot.dataset.index, 10);
+                const isPlaceholder = slot.classList.contains('item-placeholder');
+                const shouldBeVisible = index >= startIndex && index <= endIndex;
 
-                // Debugging Logs
-                console.log(`--- updateVisibleItems ---`);
-                console.log(`ScrollTop: ${scrollTop}, ViewportHeight: ${viewportHeight}, GridTop: ${gridTop}`);
-
-                // Calculate first and last potentially visible row indices
-                // Subtract gridTop from scrollTop to get scroll position *within* the grid's parent context
-                // INCREASED BUFFER from 1 to 3 rows above/below
-                const firstVisibleRow = Math.max(0, Math.floor((scrollTop - gridTop) / itemCardHeight) - 3); // Buffer 3 rows above
-                const lastVisibleRow = Math.ceil((scrollTop + viewportHeight - gridTop) / itemCardHeight) + 3; // Buffer 3 rows below
-
-                const startIndex = Math.max(0, firstVisibleRow * columnCount);
-                // Correct endIndex calculation to avoid going significantly past the last item
-                const endIndex = Math.min(currentItems.length - 1, (lastVisibleRow * columnCount) + (columnCount -1) ); 
-                
-                console.log(`Calculated Visible Range: Index ${startIndex} to ${endIndex}`);
-
-                // Get all direct children (placeholders or cards)
-                const slots = Array.from(itemGrid.children);
-
-                for (let i = 0; i < slots.length; i++) {
-                    const slot = slots[i];
-                    // Ensure slot has dataset.index before parsing
-                    if (!slot.dataset || typeof slot.dataset.index === 'undefined') continue; 
-                    
-                    const index = parseInt(slot.dataset.index, 10);
-                    const isPlaceholder = slot.classList.contains('item-placeholder');
-                    const shouldBeVisible = index >= startIndex && index <= endIndex;
-
-                    if (shouldBeVisible && isPlaceholder) {
-                        // Needs rendering: Replace placeholder with real card
-                        console.log(`Rendering item at index: ${index}`);
-                        const newItemCard = createItemCard(currentItems[index]);
-                        newItemCard.dataset.index = index; // Ensure index is set
-                        itemGrid.replaceChild(newItemCard, slot);
-                        renderedIndices.add(index);
-                        // Optional: Add animation class if desired
-                        requestAnimationFrame(() => newItemCard.classList.add('card-fade-in')); 
-                    } else if (!shouldBeVisible && !isPlaceholder) {
-                        // Needs unloading: Replace real card with placeholder
-                        console.log(`Unloading item at index: ${index}`);
-                        const newPlaceholder = createPlaceholderCard(index);
-                        itemGrid.replaceChild(newPlaceholder, slot);
-                        renderedIndices.delete(index);
-                    }
-                }
-                console.log(`--- end updateVisibleItems ---`);
-            }
-
-            // --- Intersection Observer Callback --- 
-            function handleIntersection(entries, observer) {
-                entries.forEach(entry => {
-                    const targetElement = entry.target;
-                    const index = parseInt(targetElement.dataset.index, 10);
-
-                    if (isNaN(index)) return; // Safety check
-
-                    const isPlaceholder = targetElement.classList.contains('item-placeholder');
-
-                    if (entry.isIntersecting) {
-                        // Element is entering viewport (or buffer)
-                        if (isPlaceholder) {
-                            // console.log(`Placeholder ${index} intersecting, rendering card.`); // REMOVED LOG
-                            const newItemCard = createItemCard(currentItems[index]);
-                            newItemCard.dataset.index = index;
-                            
-                            observer.unobserve(targetElement); // Stop observing placeholder
-                            // Use requestAnimationFrame for DOM update
-                            requestAnimationFrame(() => {
-                                itemGrid.replaceChild(newItemCard, targetElement);
-                                observer.observe(newItemCard); // Start observing the new card
-                            });
-                            renderedIndices.add(index);
-                        }
-                    } else {
-                        // Element is leaving viewport (or buffer)
-                        if (!isPlaceholder) { // Check if it's actually a card
-                            // console.log(`Card ${index} leaving, rendering placeholder.`); // REMOVED LOG
-                            const newPlaceholder = createPlaceholderCard(index);
-                            // newPlaceholder.dataset.index = index; // Already set in create func
-
-                            observer.unobserve(targetElement); // Stop observing card
-                            // Use requestAnimationFrame for DOM update
-                             requestAnimationFrame(() => {
-                                itemGrid.replaceChild(newPlaceholder, targetElement);
-                                observer.observe(newPlaceholder); // Start observing the new placeholder
-                            });
-                            renderedIndices.delete(index);
-                        }
-                    }
-                });
-            }
-
-            // --- Measure Actual Card Height --- 
-            // (Keep the measurement logic)
-            if (currentItems.length > 0 && !cardHeightMeasured) {
-                try {
-                    const tempCard = createItemCard(currentItems[0]);
-                    tempCard.style.position = 'absolute';
-                    tempCard.style.left = '-9999px'; // Position off-screen
-                    tempCard.style.visibility = 'hidden'; // Hide it visually
-                    itemGrid.appendChild(tempCard);
-                    const rect = tempCard.getBoundingClientRect();
-                    if (rect.height > 50) { // Basic sanity check
-                        itemCardHeight = rect.height;
-                        cardHeightMeasured = true;
-                        // console.log(`Measured itemCardHeight: ${itemCardHeight}`); // REMOVED LOG
-                    } else {
-                         console.warn('Failed to measure card height accurately, using default.');
-                    }
-                    itemGrid.removeChild(tempCard); // Clean up temporary card
-                } catch (e) {
-                    console.error('Error measuring card height:', e);
+                if (shouldBeVisible && isPlaceholder) {
+                    // Needs rendering: Replace placeholder with real card
+                    console.log(`Rendering item at index: ${index}`);
+                    const newItemCard = createItemCard(currentItems[index]);
+                    newItemCard.dataset.index = index; // Ensure index is set
+                    itemGrid.replaceChild(newItemCard, slot);
+                    renderedIndices.add(index);
+                    // Optional: Add animation class if desired
+                    requestAnimationFrame(() => newItemCard.classList.add('card-fade-in')); 
+                } else if (!shouldBeVisible && !isPlaceholder) {
+                    // Needs unloading: Replace real card with placeholder
+                    console.log(`Unloading item at index: ${index}`);
+                    const newPlaceholder = createPlaceholderCard(index);
+                    itemGrid.replaceChild(newPlaceholder, slot);
+                    renderedIndices.delete(index);
                 }
             }
-            // ----------------------------------
+            console.log(`--- end updateVisibleItems ---`);
+        }
 
-            // --- Main Logic --- 
-            if (isMobile) {
-                // console.log('--- Running Mobile Logic (IntersectionObserver) --- '); // REMOVED LOG
-                // Mobile: Virtual Scrolling via IntersectionObserver
-                itemGrid.innerHTML = ''; // Clear again just in case
-                renderedIndices.clear();
+        // --- Main Logic --- 
+        if (isMobile) {
+            // Mobile: Virtual Scrolling
+            itemGrid.innerHTML = ''; // Clear again just in case
+            renderedIndices.clear();
 
-                // Disconnect previous observer if exists
-                if (itemObserver) {
-                    itemObserver.disconnect();
-                }
+            // 1. Render all placeholders first
+            const placeholderFragment = document.createDocumentFragment();
+            for (let i = 0; i < currentItems.length; i++) {
+                placeholderFragment.appendChild(createPlaceholderCard(i));
+            }
+            itemGrid.appendChild(placeholderFragment);
+            
+            // 2. Initial render of visible items
+            // Use requestAnimationFrame to ensure layout is calculated after placeholders are added
+            requestAnimationFrame(() => {
+                updateVisibleItems();
 
-                // Create the observer
-                itemObserver = new IntersectionObserver(handleIntersection, {
-                    root: null, // Use viewport as root
-                    rootMargin: '600px 0px', // INCREASED MARGIN Load/unload when item is 600px from viewport edge
-                    threshold: 0.01 // ADJUSTED THRESHOLD - Trigger when slightly more than 0% visible
-                });
-
-                // 1. Render all placeholders first
-                const placeholderFragment = document.createDocumentFragment();
-                for (let i = 0; i < currentItems.length; i++) {
-                    const placeholder = createPlaceholderCard(i);
-                    placeholderFragment.appendChild(placeholder);
-                }
-                itemGrid.appendChild(placeholderFragment);
-                
-                // 2. Observe all placeholders
-                 console.log(`Observing ${itemGrid.children.length} initial placeholders...`);
-                 Array.from(itemGrid.children).forEach(placeholder => {
-                    if (placeholder.classList.contains('item-placeholder')) {
-                        itemObserver.observe(placeholder);
-                    }
-                 });
-                 
-                 // Initial items within viewport might need manual trigger 
-                 // (Observer might not fire if already intersecting on load)
-                 // Let's trigger a check shortly after setup
-                 setTimeout(() => {
-                    // console.log("Triggering initial visibility check after setup"); // REMOVED LOG
-                    const initialVisiblePlaceholders = [];
-                    const observerRootBounds = itemObserver.root ? itemObserver.root.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
-                    const margin = 600; // Must match rootMargin top/bottom
-                    
-                    Array.from(itemGrid.children).forEach(el => {
-                        if(el.classList.contains('item-placeholder')){
-                            const rect = el.getBoundingClientRect();
-                             // Check if the placeholder is roughly within the root + margin
-                            if (rect.top < (observerRootBounds.bottom + margin) && rect.bottom > (observerRootBounds.top - margin)) {
-                                initialVisiblePlaceholders.push({ target: el, isIntersecting: true });
-                            }
-                        }
-                    });
-                    if(initialVisiblePlaceholders.length > 0){
-                        handleIntersection(initialVisiblePlaceholders, itemObserver);
-                    }
-                 }, 100); // Short delay after initial render
-
+                // 3. Attach debounced scroll listener
+                if (scrollListener) window.removeEventListener('scroll', scrollListener);
+                scrollListener = debounce(updateVisibleItems, 150); // Debounce with 150ms delay
+                console.log('Attempting to attach scroll listener...', scrollListener); // DEBUG LOG
+                window.addEventListener('scroll', scrollListener);
+                console.log('Scroll listener attached.'); // DEBUG LOG
+            });
+            
         } else {
-                // Desktop: Render all at once
-                // Ensure previous observer is disconnected if resizing
-                if (itemObserver) {
-                    itemObserver.disconnect();
-                    itemObserver = null;
-                }
-                
+            // Desktop: Render all at once
+            // Ensure previous mobile scroll listener is removed if resizing
+            if (scrollListener) window.removeEventListener('scroll', scrollListener);
+            
             const fragment = document.createDocumentFragment();
-                items.forEach((item, index) => {
+            items.forEach((item, index) => {
                 const card = createItemCard(item);
-                    card.dataset.index = index; // Add index for consistency if needed later
+                card.dataset.index = index; // Add index for consistency if needed later
                 fragment.appendChild(card);
             });
             itemGrid.appendChild(fragment);
@@ -1524,7 +1390,7 @@ const guideData = {
                 opacity: [0, 1],
                 translateY: [15, 0],
                 scale: [0.98, 1],
-                    delay: anime.stagger(10, { start: 20 }),
+                delay: anime.stagger(10, { start: 20 }),
                 duration: 250,
                 easing: 'easeOutQuad'
             });
@@ -1542,8 +1408,8 @@ const guideData = {
 
         const img = document.createElement('img');
         img.alt = item.name;
-            img.loading = 'lazy'; // Ensure lazy loading is active
-            img.decoding = 'async'; // Further hint for browser optimization
+        img.loading = 'lazy'; // Ensure lazy loading is active
+        img.decoding = 'async'; // Further hint for browser optimization
         img.onerror = () => {
             console.warn(`Image not found for ${item.name}, showing fallback icon.`);
             img.style.display = 'none';
@@ -1645,8 +1511,6 @@ const guideData = {
         const favoriteBtn = document.createElement('button');
         favoriteBtn.className = 'add-favorite-btn';
         favoriteBtn.dataset.itemId = item.id;
-        // Add action type for delegation handler
-        favoriteBtn.dataset.action = 'toggle-favorite'; 
 
         if (favoritesList.includes(item.id)) {
             favoriteBtn.classList.add('selected');
@@ -1657,12 +1521,21 @@ const guideData = {
             favoriteBtn.title = 'Add to Favorites';
         }
 
+        favoriteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFavoriteItem(item.id, favoriteBtn);
+        });
+
         card.appendChild(favoriteBtn);
 
-        // Add item ID to card for delegation
-        card.dataset.itemId = item.id; 
-        // Add action for card click delegation
-        card.dataset.action = 'open-detail'; 
+        card.querySelectorAll('.info-chip').forEach(chip => {
+            chip.addEventListener('mouseenter', showTooltip);
+            chip.addEventListener('mouseleave', hideTooltip);
+        });
+
+        card.addEventListener('click', () => {
+            openItemDetailModal(item.id);
+        })
 
         return card;
     }
@@ -2607,7 +2480,6 @@ const guideData = {
     }
 
     // --- Event Listeners ---
-        console.log('Attaching base event listeners...'); // LOG: Before base listeners
     navButtons.forEach(button => {
         button.addEventListener('click', () => {
             const targetSection = button.dataset.section;
@@ -2631,7 +2503,6 @@ const guideData = {
     }
 
     // Basic filter listeners + check state
-        console.log('Attaching filter event listeners...'); // LOG: Before filter listeners
     if(searchBar) searchBar.addEventListener('input', () => {
         applyFiltersAndSort();
     });
@@ -2689,43 +2560,7 @@ const guideData = {
         if (e.target === itemDetailModal) closeItemDetailModal();
     });
 
-    // --- Add Delegated Event Listeners to Item Grid ---
-    if (itemGrid) {
-        // Click Handler (Card click, Favorite button)
-        itemGrid.addEventListener('click', (e) => {
-            const target = e.target;
-            const card = target.closest('.item-card');
-            const favoriteButton = target.closest('.add-favorite-btn');
-
-            if (favoriteButton && card && favoriteButton.dataset.action === 'toggle-favorite') {
-                e.stopPropagation(); // Prevent card click if favorite is clicked
-                const itemId = favoriteButton.dataset.itemId;
-                toggleFavoriteItem(itemId, favoriteButton);
-            } else if (card && card.dataset.action === 'open-detail') {
-                const itemId = card.dataset.itemId;
-                openItemDetailModal(itemId);
-            }
-        });
-
-        // Tooltip Handlers (Hover on info chips)
-        itemGrid.addEventListener('mouseover', (e) => {
-            const chip = e.target.closest('.info-chip');
-            if (chip && chip.dataset.tooltipType) {
-                showTooltip(e); // Pass the event object to showTooltip
-            }
-        });
-
-        itemGrid.addEventListener('mouseout', (e) => {
-             const chip = e.target.closest('.info-chip');
-             if (chip && chip.dataset.tooltipType) {
-                hideTooltip();
-            }
-        });
-    }
-    // --------------------------------------------------
-
     // --- Initial Load ---
-    console.log('Calling fetchData inside DOMContentLoaded...'); // LOG: Before fetchData call
     fetchData();
     
     // Insert the styles for the creators list
@@ -2856,28 +2691,28 @@ const guideData = {
     if (detailContainer) {
         observer.observe(detailContainer, { childList: true, subtree: true });
     }
-    } catch (error) {
-        console.error("Error during DOMContentLoaded initialization:", error); // LOG: Catch initialization errors
-    }
-    console.log('--- DOMContentLoaded END ---'); // LOG: DOMContentLoaded End
-
-    // Independent scroll position logging
-    setInterval(() => {
-        console.log(`[Periodic Log] window.scrollY: ${window.scrollY}`);
-    }, 5000); // Log every 5 seconds
-
 });
 
-// --- Initialize Mobile Features --- // (This section might be redundant or misplaced)
-/*
+// --- Initialize Mobile Features ---
+// This function was refactored and replaced with initializeResponsiveFeatures
+// Remove this to fix the error: Uncaught ReferenceError: timelineEventsEl is not defined
+
+// Call this function after loading timeline events
 document.addEventListener('DOMContentLoaded', () => {
+    // Existing initialization code
+    // ...
+    
+    // Initialize mobile-specific features
     initializeResponsiveFeatures();
+    
+    // Update heights on page load
     updateLayoutHeights();
+    
+    // Listen for resize events to adapt layout
     window.addEventListener('resize', () => {
         initializeResponsiveFeatures();
     });
 });
-*/
 
 function initParticleSystem() {
     const particleCanvas = document.getElementById('particle-canvas');

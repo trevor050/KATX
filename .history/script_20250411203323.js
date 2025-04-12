@@ -1396,11 +1396,8 @@ const guideData = {
                             newItemCard.dataset.index = index;
                             
                             observer.unobserve(targetElement); // Stop observing placeholder
-                            // Use requestAnimationFrame for DOM update
-                            requestAnimationFrame(() => {
-                                itemGrid.replaceChild(newItemCard, targetElement);
-                                observer.observe(newItemCard); // Start observing the new card
-                            });
+                            itemGrid.replaceChild(newItemCard, targetElement);
+                            observer.observe(newItemCard); // Start observing the new card
                             renderedIndices.add(index);
                         }
                     } else {
@@ -1411,11 +1408,8 @@ const guideData = {
                             // newPlaceholder.dataset.index = index; // Already set in create func
 
                             observer.unobserve(targetElement); // Stop observing card
-                            // Use requestAnimationFrame for DOM update
-                             requestAnimationFrame(() => {
-                                itemGrid.replaceChild(newPlaceholder, targetElement);
-                                observer.observe(newPlaceholder); // Start observing the new placeholder
-                            });
+                            itemGrid.replaceChild(newPlaceholder, targetElement);
+                            observer.observe(newPlaceholder); // Start observing the new placeholder
                             renderedIndices.delete(index);
                         }
                     }
@@ -1645,8 +1639,6 @@ const guideData = {
         const favoriteBtn = document.createElement('button');
         favoriteBtn.className = 'add-favorite-btn';
         favoriteBtn.dataset.itemId = item.id;
-        // Add action type for delegation handler
-        favoriteBtn.dataset.action = 'toggle-favorite'; 
 
         if (favoritesList.includes(item.id)) {
             favoriteBtn.classList.add('selected');
@@ -1657,12 +1649,21 @@ const guideData = {
             favoriteBtn.title = 'Add to Favorites';
         }
 
+        favoriteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFavoriteItem(item.id, favoriteBtn);
+        });
+
         card.appendChild(favoriteBtn);
 
-        // Add item ID to card for delegation
-        card.dataset.itemId = item.id; 
-        // Add action for card click delegation
-        card.dataset.action = 'open-detail'; 
+        card.querySelectorAll('.info-chip').forEach(chip => {
+            chip.addEventListener('mouseenter', showTooltip);
+            chip.addEventListener('mouseleave', hideTooltip);
+        });
+
+        card.addEventListener('click', () => {
+            openItemDetailModal(item.id);
+        })
 
         return card;
     }
@@ -2689,43 +2690,8 @@ const guideData = {
         if (e.target === itemDetailModal) closeItemDetailModal();
     });
 
-    // --- Add Delegated Event Listeners to Item Grid ---
-    if (itemGrid) {
-        // Click Handler (Card click, Favorite button)
-        itemGrid.addEventListener('click', (e) => {
-            const target = e.target;
-            const card = target.closest('.item-card');
-            const favoriteButton = target.closest('.add-favorite-btn');
-
-            if (favoriteButton && card && favoriteButton.dataset.action === 'toggle-favorite') {
-                e.stopPropagation(); // Prevent card click if favorite is clicked
-                const itemId = favoriteButton.dataset.itemId;
-                toggleFavoriteItem(itemId, favoriteButton);
-            } else if (card && card.dataset.action === 'open-detail') {
-                const itemId = card.dataset.itemId;
-                openItemDetailModal(itemId);
-            }
-        });
-
-        // Tooltip Handlers (Hover on info chips)
-        itemGrid.addEventListener('mouseover', (e) => {
-            const chip = e.target.closest('.info-chip');
-            if (chip && chip.dataset.tooltipType) {
-                showTooltip(e); // Pass the event object to showTooltip
-            }
-        });
-
-        itemGrid.addEventListener('mouseout', (e) => {
-             const chip = e.target.closest('.info-chip');
-             if (chip && chip.dataset.tooltipType) {
-                hideTooltip();
-            }
-        });
-    }
-    // --------------------------------------------------
-
     // --- Initial Load ---
-    console.log('Calling fetchData inside DOMContentLoaded...'); // LOG: Before fetchData call
+        console.log('Calling fetchData inside DOMContentLoaded...'); // LOG: Before fetchData call
     fetchData();
     
     // Insert the styles for the creators list
